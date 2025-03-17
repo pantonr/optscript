@@ -2,8 +2,10 @@ name: Whiteboard Price Check
 
 on:
   schedule:
-    - cron: '0 14 * * *'  # Runs at 14:00 UTC daily (adjust time as needed)
-  workflow_dispatch:  # Allows manual triggers
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+  repository_dispatch:
+    types: [sheet-trigger]  # Add this line
 
 jobs:
   check-price:
