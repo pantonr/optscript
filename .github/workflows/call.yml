@@ -1,0 +1,31 @@
+name: Call
+on:
+  schedule:
+    - cron: '0 */4 * * *'  # Runs every 4 hours
+  workflow_dispatch:        # Allows manual trigger
+
+jobs:
+  run-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+          
+      - name: Run integration
+        env:
+          ODOO_URL: ${{ secrets.ODOO_URL }}
+          ODOO_DB: ${{ secrets.ODOO_DB }}
+          ODOO_LOGIN: ${{ secrets.ODOO_LOGIN }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+          CALLRAIL_API_KEY: ${{ secrets.CALLRAIL_API_KEY }}
+          CALLRAIL_ACCOUNT_ID: ${{ secrets.CALLRAIL_ACCOUNT_ID }}
+        run: python call.py
