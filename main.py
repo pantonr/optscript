@@ -5,7 +5,7 @@ import gspread
 from datetime import datetime
 
 # Configuration
-SERVICE_ACCOUNT_FILE = '/Users/philipantonelli/Downloads/basic-connect-438617-1034321351b2.json'
+SERVICE_ACCOUNT_FILE = 'credentials.json'
 SPREADSHEET_ID = '1scaHZbpdw_-DE3_CZH7xF4uLo8jXIQzUNjGhfnmRvug'
 WORKSHEET_NAME = "mwb_freight_timing"
 
