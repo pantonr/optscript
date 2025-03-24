@@ -27,4 +27,4 @@ jobs:
         env:
           ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
           ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
-        run: python try.py  # Or whatever you named your script
+        run: python odoo-scheduler.py
