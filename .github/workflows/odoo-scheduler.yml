@@ -1,0 +1,30 @@
+name: Odoo Monthly Meeting Scheduler
+
+on:
+  schedule:
+    - cron: '0 13 * * *'  # Runs at 1 PM UTC daily
+  workflow_dispatch:      # Allows manual trigger
+
+jobs:
+  run-scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright
+          playwright install
+          playwright install-deps
+          
+      - name: Run scheduler script
+        env:
+          ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+        run: python try.py  # Or whatever you named your script
