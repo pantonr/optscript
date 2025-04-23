@@ -1,4 +1,4 @@
-// Complete GTM Event Logger with Full Data Extraction
+// GTM Event Logger with Enhanced Ecommerce Data
 (function() {
   // Storage key for enabling/disabling logging
   var LOGGER_ENABLED_KEY = 'gtm_logger_enabled';
@@ -55,173 +55,63 @@
     }
   }
   
-  // Safe stringify function that handles circular references
-  function safeStringify(obj, maxLength) {
-    if (maxLength === undefined) maxLength = 500;
+  // Function to safely extract ecommerce data
+  function getEcommerceDetails(ecomObj) {
+    if (!ecomObj) return "no";
     
     try {
-      // Handle different types
-      if (obj === null) return "null";
-      if (obj === undefined) return "undefined";
-      if (typeof obj === "string") return obj.substring(0, maxLength);
+      var details = [];
       
-      // For Date objects
-      if (obj instanceof Date) return obj.toISOString();
-      
-      // For Arrays, convert each item
-      if (Array.isArray(obj)) {
-        if (obj.length === 0) return "[]";
-        return "[" + obj.length + " items]";
-      }
-      
-      // For objects, try to extract key information
-      if (typeof obj === "object") {
-        var seen = [];
+      // Check for GA4 format
+      if (ecomObj.items && Array.isArray(ecomObj.items)) {
+        details.push("items:" + ecomObj.items.length);
         
-        // Custom replacer function to handle circular references
-        var str = JSON.stringify(obj, function(key, value) {
-          if (typeof value === "object" && value !== null) {
-            if (seen.includes(value)) return "[Circular]";
-            seen.push(value);
-          }
-          return value;
-        });
-        
-        if (str.length > maxLength) {
-          return str.substring(0, maxLength) + "...";
+        // Get first item details
+        if (ecomObj.items.length > 0) {
+          var item = ecomObj.items[0];
+          if (item.item_name) details.push("name:" + item.item_name);
+          if (item.item_id) details.push("id:" + item.item_id);
+          if (item.price) details.push("price:" + item.price);
         }
-        return str;
+        
+        // Get value if present
+        if (ecomObj.value) details.push("value:" + ecomObj.value);
       }
       
-      // For other types, convert to string
-      return String(obj);
-    } catch (e) {
-      return "Error stringifying: " + e.message;
-    }
-  }
-  
-  // Extract useful information from ecommerce object
-  function extractEcommerceDetails(ecom) {
-    if (!ecom) return "";
-    
-    var details = [];
-    
-    // Try to detect GA4 or UA format
-    
-    // GA4 format
-    if (ecom.items && Array.isArray(ecom.items)) {
-      var itemsList = [];
-      ecom.items.forEach(function(item, index) {
-        var itemInfo = [];
-        if (item.item_name) itemInfo.push("name:" + item.item_name);
-        if (item.item_id) itemInfo.push("id:" + item.item_id);
-        if (item.price) itemInfo.push("$" + item.price);
-        if (item.quantity) itemInfo.push("qty:" + item.quantity);
-        
-        itemsList.push((index + 1) + ":{" + itemInfo.join(",") + "}");
+      // Enhanced Ecommerce format (UA)
+      var actions = ["detail", "add", "remove", "checkout", "purchase"];
+      actions.forEach(function(action) {
+        if (ecomObj[action]) {
+          details.push("action:" + action);
+          
+          // Get products
+          if (ecomObj[action].products && ecomObj[action].products.length > 0) {
+            var product = ecomObj[action].products[0];
+            if (product.name) details.push("name:" + product.name);
+            if (product.id) details.push("id:" + product.id);
+            if (product.price) details.push("price:" + product.price);
+          }
+          
+          // Get transaction data
+          if (action === "purchase" && ecomObj[action].actionField) {
+            var af = ecomObj[action].actionField;
+            if (af.id) details.push("transaction:" + af.id);
+            if (af.revenue) details.push("revenue:" + af.revenue);
+          }
+        }
       });
       
-      if (itemsList.length > 0) {
-        details.push("items:[" + itemsList.join(" | ") + "]");
+      // If we got details, return them
+      if (details.length > 0) {
+        return details.join(" | ");
       }
       
-      // Value
-      if (ecom.value) details.push("value:" + ecom.value);
+      // Otherwise, return a short version of the object
+      var shortJson = JSON.stringify(ecomObj).substring(0, 200);
+      return shortJson;
       
-      // Currency
-      if (ecom.currency) details.push("currency:" + ecom.currency);
-    }
-    
-    // UA Enhanced Ecommerce format
-    var actionTypes = ["detail", "click", "add", "remove", "checkout", "purchase"];
-    actionTypes.forEach(function(action) {
-      if (ecom[action]) {
-        details.push("action:" + action);
-        
-        if (ecom[action].products && Array.isArray(ecom[action].products)) {
-          var productList = [];
-          ecom[action].products.forEach(function(product, index) {
-            var productInfo = [];
-            if (product.name) productInfo.push("name:" + product.name);
-            if (product.id) productInfo.push("id:" + product.id);
-            if (product.price) productInfo.push("$" + product.price);
-            if (product.quantity) productInfo.push("qty:" + product.quantity);
-            
-            productList.push((index + 1) + ":{" + productInfo.join(",") + "}");
-          });
-          
-          if (productList.length > 0) {
-            details.push("products:[" + productList.join(" | ") + "]");
-          }
-        }
-        
-        if (ecom[action].actionField) {
-          var actionFieldInfo = [];
-          var af = ecom[action].actionField;
-          if (af.id) actionFieldInfo.push("id:" + af.id);
-          if (af.revenue) actionFieldInfo.push("revenue:" + af.revenue);
-          if (af.step) actionFieldInfo.push("step:" + af.step);
-          
-          if (actionFieldInfo.length > 0) {
-            details.push("actionField:{" + actionFieldInfo.join(",") + "}");
-          }
-        }
-      }
-    });
-    
-    // If we couldn't extract specific details
-    if (details.length === 0) {
-      return safeStringify(ecom, 200);
-    }
-    
-    return details.join(" | ");
-  }
-  
-  // Extract ALL relevant data from an event
-  function extractEventData(eventData) {
-    try {
-      var result = {};
-      
-      // Copy all direct properties except ecommerce (which we'll handle specially)
-      for (var prop in eventData) {
-        if (prop !== 'ecommerce') {
-          result[prop] = safeStringify(eventData[prop], 100);
-        }
-      }
-      
-      // Handle ecommerce data with special extraction
-      if (eventData.ecommerce) {
-        result.ecommerceDetails = extractEcommerceDetails(eventData.ecommerce);
-      }
-      
-      return result;
     } catch (e) {
-      return { error: "Error extracting data: " + e.message };
-    }
-  }
-  
-  // Format extracted data for Google Sheet
-  function formatDataForSheet(extractedData) {
-    try {
-      var result = [];
-      
-      // Add ecommerce details if available
-      if (extractedData.ecommerceDetails) {
-        result.push("ECOM: " + extractedData.ecommerceDetails);
-        delete extractedData.ecommerceDetails;
-      }
-      
-      // Add other properties
-      for (var prop in extractedData) {
-        // Skip the event name since we already log it separately
-        if (prop !== 'event') {
-          result.push(prop + ": " + extractedData[prop]);
-        }
-      }
-      
-      return result.join(" | ");
-    } catch (e) {
-      return "Error formatting: " + e.message;
+      return "error parsing ecommerce data";
     }
   }
   
@@ -233,13 +123,13 @@
       var page = window.location.pathname;
       var time = new Date().toLocaleTimeString();
       
-      // Extract and format ALL available data
-      var extractedData = extractEventData(eventData);
-      var detailedData = formatDataForSheet(extractedData);
+      // Get detailed ecommerce information
+      var ecommerceDetails = eventData.ecommerce ? 
+                           getEcommerceDetails(eventData.ecommerce) : 
+                           "no";
       
-      // Log to console with more details
+      // Log to console
       console.log('📊 GTM Event:', eventName, eventData);
-      console.log('📋 Extracted:', detailedData);
       
       // Send to Google Sheet via image request
       var img = new Image();
@@ -247,7 +137,7 @@
                 '?time=' + encodeURIComponent(time) + 
                 '&page=' + encodeURIComponent(page) + 
                 '&event=' + encodeURIComponent(eventName) + 
-                '&ecommerce=' + encodeURIComponent(detailedData);
+                '&ecommerce=' + encodeURIComponent(ecommerceDetails);
                 
       // Add to DOM briefly to ensure request goes through
       img.style.display = 'none';
