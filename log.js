@@ -1,6 +1,6 @@
-// GTM Event Logger with Full Data Capture
+// GTM Event Logger with Full Data + JSON Capture
 (function() {
-  console.log('GTM Logger Script Version 2.0 - Loading');
+  console.log('GTM Logger Script Version 3.0 - Loading');
   
   // Storage key for enabling/disabling logging
   var LOGGER_ENABLED_KEY = 'gtm_logger_enabled';
@@ -41,7 +41,7 @@
       banner.style.padding = '10px';
       banner.style.textAlign = 'center';
       banner.style.zIndex = '9999999';
-      banner.innerHTML = 'GTM LOGGING ACTIVE (V2.0)';
+      banner.innerHTML = 'GTM LOGGING ACTIVE (V3.0 with JSON)';
       
       // Add disable button
       var disableBtn = document.createElement('button');
@@ -57,87 +57,19 @@
     }
   }
   
-  // Function to safely extract data for URL transmission
-  function safeExtract(obj) {
-    if (!obj) return "no";
+  // Function to safely get JSON representation
+  function safeJsonStringify(obj, maxLength) {
+    if (!obj) return "";
+    if (maxLength === undefined) maxLength = 250;
     
     try {
-      var result = "ECOM-DATA:";
-      
-      // Handle GA4 ecommerce format
-      if (obj.items && Array.isArray(obj.items)) {
-        result += "GA4|";
-        
-        if (obj.items.length > 0) {
-          var item = obj.items[0];
-          var itemData = [];
-          
-          if (item.item_name) itemData.push("name:" + item.item_name);
-          if (item.item_id) itemData.push("id:" + item.item_id);
-          if (item.price) itemData.push("$" + item.price);
-          
-          result += "items[" + obj.items.length + "]|" + itemData.join(",");
-        }
-        
-        if (obj.value) result += "|value:" + obj.value;
+      var json = JSON.stringify(obj);
+      if (json.length > maxLength) {
+        json = json.substring(0, maxLength) + "...";
       }
-      // Handle UA Enhanced Ecommerce format
-      else if (obj.detail || obj.add || obj.purchase) {
-        result += "UA|";
-        
-        if (obj.detail) {
-          result += "detail|";
-          if (obj.detail.products && obj.detail.products.length > 0) {
-            var prod = obj.detail.products[0];
-            var prodInfo = [];
-            if (prod.name) prodInfo.push("name:" + prod.name);
-            if (prod.id) prodInfo.push("id:" + prod.id);
-            if (prod.price) prodInfo.push("$" + prod.price);
-            result += prodInfo.join(",");
-          }
-        }
-        
-        if (obj.add) {
-          result += "add|";
-          if (obj.add.products && obj.add.products.length > 0) {
-            var prod = obj.add.products[0];
-            var prodInfo = [];
-            if (prod.name) prodInfo.push("name:" + prod.name);
-            if (prod.id) prodInfo.push("id:" + prod.id);
-            if (prod.price) prodInfo.push("$" + prod.price);
-            result += prodInfo.join(",");
-          }
-        }
-        
-        if (obj.purchase) {
-          result += "purchase|";
-          if (obj.purchase.actionField && obj.purchase.actionField.revenue) {
-            result += "revenue:" + obj.purchase.actionField.revenue;
-          }
-        }
-      }
-      // If we can't identify the format, just return raw JSON
-      else {
-        var json = JSON.stringify(obj);
-        if (json.length > 150) {
-          json = json.substring(0, 150) + "...";
-        }
-        result += "RAW|" + json;
-      }
-      
-      return result;
+      return json;
     } catch (e) {
-      return "ERROR:" + e.message;
-    }
-  }
-  
-  // Function to directly log raw data - absolutely minimal processing
-  function directDataExtract(obj) {
-    try {
-      if (!obj) return "no-data";
-      return "RAW-JSON:" + JSON.stringify(obj).substring(0, 200);
-    } catch(e) {
-      return "ERROR:" + e.message;
+      return "Error: " + e.message;
     }
   }
   
@@ -149,17 +81,73 @@
       var page = window.location.pathname;
       var time = new Date().toLocaleTimeString();
       
-      // First try the structured extraction
-      var ecommerceData = eventData.ecommerce ? safeExtract(eventData.ecommerce) : "no";
+      // Get the raw JSON of ecommerce data
+      var rawJson = "";
+      if (eventData.ecommerce) {
+        rawJson = safeJsonStringify(eventData.ecommerce, 250);
+      }
       
-      // If that fails, fall back to raw data
-      if (ecommerceData.indexOf("ERROR:") === 0 && eventData.ecommerce) {
-        ecommerceData = directDataExtract(eventData.ecommerce);
+      // Format: Use the DIRECT_EXTRACT format that we know works
+      var ecommerceData = "no";
+      if (eventData.ecommerce) {
+        try {
+          ecommerceData = "DIRECT_EXTRACT: ";
+          
+          // For GA4
+          if (eventData.ecommerce.items) {
+            ecommerceData += "GA4 | items[" + eventData.ecommerce.items.length + "]";
+            
+            // First item details
+            if (eventData.ecommerce.items.length > 0) {
+              ecommerceData += " | first_item:" + safeJsonStringify(eventData.ecommerce.items[0], 100);
+            }
+            
+            // Value if present
+            if (eventData.ecommerce.value) {
+              ecommerceData += " | value:" + eventData.ecommerce.value;
+            }
+          }
+          // For UA Enhanced Ecommerce
+          else if (eventData.ecommerce.detail || eventData.ecommerce.add || eventData.ecommerce.purchase) {
+            ecommerceData += "UA | ";
+            
+            if (eventData.ecommerce.detail) {
+              ecommerceData += "detail | ";
+              if (eventData.ecommerce.detail.products) {
+                ecommerceData += "products:" + safeJsonStringify(eventData.ecommerce.detail.products, 100);
+              }
+            }
+            
+            if (eventData.ecommerce.add) {
+              ecommerceData += "add | ";
+              if (eventData.ecommerce.add.products) {
+                ecommerceData += "products:" + safeJsonStringify(eventData.ecommerce.add.products, 100);
+              }
+            }
+            
+            if (eventData.ecommerce.purchase) {
+              ecommerceData += "purchase | ";
+              if (eventData.ecommerce.purchase.actionField) {
+                ecommerceData += "transaction:" + safeJsonStringify(eventData.ecommerce.purchase.actionField, 100);
+              }
+            }
+          }
+          // For unknown formats
+          else {
+            ecommerceData += "UNKNOWN | raw:" + safeJsonStringify(eventData.ecommerce, 100);
+          }
+        } catch (err) {
+          ecommerceData = "ERROR: " + err.message;
+        }
       }
       
       // Log to console
       console.log('📊 GTM Event:', eventName, eventData);
-      console.log('   Extracted Data:', ecommerceData);
+      console.log('   Extracted:', ecommerceData);
+      console.log('   Raw JSON:', rawJson);
+      
+      // Add raw JSON to the data
+      ecommerceData += " || JSON:" + rawJson;
       
       // Send to Google Sheet via image request
       var img = new Image();
@@ -222,7 +210,7 @@
       return result;
     };
     
-    console.log('GTM monitoring initialized (V2.0)');
+    console.log('GTM monitoring initialized (V3.0 with JSON)');
     
     // Send initialization confirmation
     if (isLoggingEnabled()) {
@@ -231,7 +219,7 @@
                 '?time=' + encodeURIComponent(new Date().toLocaleTimeString()) + 
                 '&page=' + encodeURIComponent(window.location.pathname) + 
                 '&event=' + encodeURIComponent('logger_initialized') + 
-                '&ecommerce=' + encodeURIComponent('VERSION:2.0 - Enhanced Data Capture');
+                '&ecommerce=' + encodeURIComponent('VERSION:3.0 - With full JSON data');
       img.style.display = 'none';
       document.body.appendChild(img);
     }
