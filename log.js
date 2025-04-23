@@ -1,7 +1,5 @@
-// GTM Event Logger with Full Data + JSON Capture
+// GTM Event Logger with Minimal JSON Change
 (function() {
-  console.log('GTM Logger Script Version 3.0 - Loading');
-  
   // Storage key for enabling/disabling logging
   var LOGGER_ENABLED_KEY = 'gtm_logger_enabled';
   
@@ -41,7 +39,7 @@
       banner.style.padding = '10px';
       banner.style.textAlign = 'center';
       banner.style.zIndex = '9999999';
-      banner.innerHTML = 'GTM LOGGING ACTIVE (V3.0 with JSON)';
+      banner.innerHTML = 'GTM LOGGING ACTIVE';
       
       // Add disable button
       var disableBtn = document.createElement('button');
@@ -57,22 +55,6 @@
     }
   }
   
-  // Function to safely get JSON representation
-  function safeJsonStringify(obj, maxLength) {
-    if (!obj) return "";
-    if (maxLength === undefined) maxLength = 250;
-    
-    try {
-      var json = JSON.stringify(obj);
-      if (json.length > maxLength) {
-        json = json.substring(0, maxLength) + "...";
-      }
-      return json;
-    } catch (e) {
-      return "Error: " + e.message;
-    }
-  }
-  
   // Function to log an event to Google Sheet
   function logToSheet(eventData) {
     try {
@@ -81,73 +63,18 @@
       var page = window.location.pathname;
       var time = new Date().toLocaleTimeString();
       
-      // Get the raw JSON of ecommerce data
-      var rawJson = "";
-      if (eventData.ecommerce) {
-        rawJson = safeJsonStringify(eventData.ecommerce, 250);
-      }
-      
-      // Format: Use the DIRECT_EXTRACT format that we know works
-      var ecommerceData = "no";
+      // ONLY CHANGE: Modify ecommerce data to include JSON instead of yes/no
+      var ecommerce = "no";
       if (eventData.ecommerce) {
         try {
-          ecommerceData = "DIRECT_EXTRACT: ";
-          
-          // For GA4
-          if (eventData.ecommerce.items) {
-            ecommerceData += "GA4 | items[" + eventData.ecommerce.items.length + "]";
-            
-            // First item details
-            if (eventData.ecommerce.items.length > 0) {
-              ecommerceData += " | first_item:" + safeJsonStringify(eventData.ecommerce.items[0], 100);
-            }
-            
-            // Value if present
-            if (eventData.ecommerce.value) {
-              ecommerceData += " | value:" + eventData.ecommerce.value;
-            }
-          }
-          // For UA Enhanced Ecommerce
-          else if (eventData.ecommerce.detail || eventData.ecommerce.add || eventData.ecommerce.purchase) {
-            ecommerceData += "UA | ";
-            
-            if (eventData.ecommerce.detail) {
-              ecommerceData += "detail | ";
-              if (eventData.ecommerce.detail.products) {
-                ecommerceData += "products:" + safeJsonStringify(eventData.ecommerce.detail.products, 100);
-              }
-            }
-            
-            if (eventData.ecommerce.add) {
-              ecommerceData += "add | ";
-              if (eventData.ecommerce.add.products) {
-                ecommerceData += "products:" + safeJsonStringify(eventData.ecommerce.add.products, 100);
-              }
-            }
-            
-            if (eventData.ecommerce.purchase) {
-              ecommerceData += "purchase | ";
-              if (eventData.ecommerce.purchase.actionField) {
-                ecommerceData += "transaction:" + safeJsonStringify(eventData.ecommerce.purchase.actionField, 100);
-              }
-            }
-          }
-          // For unknown formats
-          else {
-            ecommerceData += "UNKNOWN | raw:" + safeJsonStringify(eventData.ecommerce, 100);
-          }
-        } catch (err) {
-          ecommerceData = "ERROR: " + err.message;
+          ecommerce = "JSON:" + JSON.stringify(eventData.ecommerce).substring(0, 200);
+        } catch(e) {
+          ecommerce = "error:" + e.message;
         }
       }
       
       // Log to console
       console.log('📊 GTM Event:', eventName, eventData);
-      console.log('   Extracted:', ecommerceData);
-      console.log('   Raw JSON:', rawJson);
-      
-      // Add raw JSON to the data
-      ecommerceData += " || JSON:" + rawJson;
       
       // Send to Google Sheet via image request
       var img = new Image();
@@ -155,7 +82,7 @@
                 '?time=' + encodeURIComponent(time) + 
                 '&page=' + encodeURIComponent(page) + 
                 '&event=' + encodeURIComponent(eventName) + 
-                '&ecommerce=' + encodeURIComponent(ecommerceData);
+                '&ecommerce=' + encodeURIComponent(ecommerce);
                 
       // Add to DOM briefly to ensure request goes through
       img.style.display = 'none';
@@ -168,20 +95,6 @@
       
     } catch(e) {
       console.error('Error logging to sheet:', e);
-      
-      // Last resort - try to send error info
-      try {
-        var img = new Image();
-        img.src = SHEET_URL + 
-                  '?time=' + encodeURIComponent(new Date().toLocaleTimeString()) + 
-                  '&page=' + encodeURIComponent(window.location.pathname) + 
-                  '&event=' + encodeURIComponent('error_in_logger') + 
-                  '&ecommerce=' + encodeURIComponent('ERROR:' + e.message);
-        img.style.display = 'none';
-        document.body.appendChild(img);
-      } catch(e2) {
-        // Nothing more we can do
-      }
     }
   }
   
@@ -210,19 +123,7 @@
       return result;
     };
     
-    console.log('GTM monitoring initialized (V3.0 with JSON)');
-    
-    // Send initialization confirmation
-    if (isLoggingEnabled()) {
-      var img = new Image();
-      img.src = SHEET_URL + 
-                '?time=' + encodeURIComponent(new Date().toLocaleTimeString()) + 
-                '&page=' + encodeURIComponent(window.location.pathname) + 
-                '&event=' + encodeURIComponent('logger_initialized') + 
-                '&ecommerce=' + encodeURIComponent('VERSION:3.0 - With full JSON data');
-      img.style.display = 'none';
-      document.body.appendChild(img);
-    }
+    console.log('GTM monitoring initialized');
   }
   
   // Initialize
