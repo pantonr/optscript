@@ -55,63 +55,129 @@
     }
   }
   
-  // Function to safely extract ecommerce data
-  function getEcommerceDetails(ecomObj) {
-    if (!ecomObj) return "no";
+  // Function to safely stringify objects (from the successful approach)
+  function safeStringify(obj, maxLen) {
+    if (maxLen === undefined) maxLen = 200;
+    try {
+      var str = JSON.stringify(obj);
+      if (str.length > maxLen) {
+        return str.substring(0, maxLen) + "...";
+      }
+      return str;
+    } catch (e) {
+      return "Error: " + e.message;
+    }
+  }
+  
+  // Extract ecommerce data using the successful approach
+  function extractEcommerceDetails(ecom) {
+    if (!ecom) return "no";
     
     try {
-      var details = [];
+      var ecomStr = "EXTRACT: ";
       
-      // Check for GA4 format
-      if (ecomObj.items && Array.isArray(ecomObj.items)) {
-        details.push("items:" + ecomObj.items.length);
+      // For GA4
+      if (ecom.items) {
+        ecomStr += "GA4 | items[" + ecom.items.length + "]";
         
-        // Get first item details
-        if (ecomObj.items.length > 0) {
-          var item = ecomObj.items[0];
-          if (item.item_name) details.push("name:" + item.item_name);
-          if (item.item_id) details.push("id:" + item.item_id);
-          if (item.price) details.push("price:" + item.price);
-        }
-        
-        // Get value if present
-        if (ecomObj.value) details.push("value:" + ecomObj.value);
-      }
-      
-      // Enhanced Ecommerce format (UA)
-      var actions = ["detail", "add", "remove", "checkout", "purchase"];
-      actions.forEach(function(action) {
-        if (ecomObj[action]) {
-          details.push("action:" + action);
+        // Add first item details if available
+        if (ecom.items.length > 0) {
+          var firstItem = ecom.items[0];
           
-          // Get products
-          if (ecomObj[action].products && ecomObj[action].products.length > 0) {
-            var product = ecomObj[action].products[0];
-            if (product.name) details.push("name:" + product.name);
-            if (product.id) details.push("id:" + product.id);
-            if (product.price) details.push("price:" + product.price);
-          }
+          // Extract specific properties instead of stringifying the whole object
+          var itemDetails = [];
+          if (firstItem.item_name) itemDetails.push("name:" + firstItem.item_name);
+          if (firstItem.item_id) itemDetails.push("id:" + firstItem.item_id);
+          if (firstItem.price) itemDetails.push("price:" + firstItem.price);
+          if (firstItem.quantity) itemDetails.push("qty:" + firstItem.quantity);
           
-          // Get transaction data
-          if (action === "purchase" && ecomObj[action].actionField) {
-            var af = ecomObj[action].actionField;
-            if (af.id) details.push("transaction:" + af.id);
-            if (af.revenue) details.push("revenue:" + af.revenue);
+          if (itemDetails.length > 0) {
+            ecomStr += " | " + itemDetails.join(" | ");
+          } else {
+            ecomStr += " | item:" + safeStringify(firstItem, 80);
           }
         }
-      });
-      
-      // If we got details, return them
-      if (details.length > 0) {
-        return details.join(" | ");
+        
+        // Add value if available
+        if (ecom.value) {
+          ecomStr += " | value:" + ecom.value;
+        }
+        
+        // Add currency if available
+        if (ecom.currency) {
+          ecomStr += " | currency:" + ecom.currency;
+        }
+      } 
+      // For UA Enhanced Ecommerce
+      else if (ecom.detail || ecom.add || ecom.purchase) {
+        ecomStr += "UA | ";
+        
+        if (ecom.detail) {
+          ecomStr += "detail | ";
+          if (ecom.detail.products && ecom.detail.products.length > 0) {
+            var product = ecom.detail.products[0];
+            var productDetails = [];
+            if (product.name) productDetails.push("name:" + product.name);
+            if (product.id) productDetails.push("id:" + product.id);
+            if (product.price) productDetails.push("price:" + product.price);
+            
+            if (productDetails.length > 0) {
+              ecomStr += productDetails.join(" | ");
+            } else {
+              ecomStr += "product:" + safeStringify(product, 80);
+            }
+          }
+        }
+        
+        if (ecom.add) {
+          ecomStr += "add_to_cart | ";
+          if (ecom.add.products && ecom.add.products.length > 0) {
+            var product = ecom.add.products[0];
+            var productDetails = [];
+            if (product.name) productDetails.push("name:" + product.name);
+            if (product.id) productDetails.push("id:" + product.id);
+            if (product.price) productDetails.push("price:" + product.price);
+            if (product.quantity) productDetails.push("qty:" + product.quantity);
+            
+            if (productDetails.length > 0) {
+              ecomStr += productDetails.join(" | ");
+            } else {
+              ecomStr += "product:" + safeStringify(product, 80);
+            }
+          }
+        }
+        
+        if (ecom.purchase) {
+          ecomStr += "purchase | ";
+          if (ecom.purchase.actionField) {
+            var af = ecom.purchase.actionField;
+            var afDetails = [];
+            if (af.id) afDetails.push("id:" + af.id);
+            if (af.revenue) afDetails.push("revenue:" + af.revenue);
+            if (af.tax) afDetails.push("tax:" + af.tax);
+            if (af.shipping) afDetails.push("shipping:" + af.shipping);
+            
+            if (afDetails.length > 0) {
+              ecomStr += afDetails.join(" | ");
+            } else {
+              ecomStr += "transaction:" + safeStringify(af, 80);
+            }
+          }
+          
+          if (ecom.purchase.products && ecom.purchase.products.length > 0) {
+            ecomStr += " | products:" + ecom.purchase.products.length;
+          }
+        }
+      } 
+      // If we couldn't identify the format
+      else {
+        // Just dump the first 150 chars of the stringified object
+        ecomStr += "UNKNOWN_FORMAT | raw:" + safeStringify(ecom, 150);
       }
       
-      // Otherwise, return a short version of the object
-      var shortJson = JSON.stringify(ecomObj).substring(0, 200);
-      return shortJson;
-      
+      return ecomStr;
     } catch (e) {
-      return "error parsing ecommerce data";
+      return "ERROR: " + e.message;
     }
   }
   
@@ -123,13 +189,14 @@
       var page = window.location.pathname;
       var time = new Date().toLocaleTimeString();
       
-      // Get detailed ecommerce information
+      // Get detailed ecommerce information using our successful method
       var ecommerceDetails = eventData.ecommerce ? 
-                           getEcommerceDetails(eventData.ecommerce) : 
+                           extractEcommerceDetails(eventData.ecommerce) : 
                            "no";
       
       // Log to console
       console.log('📊 GTM Event:', eventName, eventData);
+      console.log('   Ecommerce Details:', ecommerceDetails);
       
       // Send to Google Sheet via image request
       var img = new Image();
@@ -179,6 +246,23 @@
     };
     
     console.log('GTM monitoring initialized');
+    
+    // Also capture existing ecommerce events when first enabled
+    if (isLoggingEnabled()) {
+      console.log('Scanning existing dataLayer events...');
+      
+      // Find events with ecommerce data
+      var ecommerceEvents = window.dataLayer.filter(function(item) {
+        return item && typeof item === 'object' && item.ecommerce;
+      });
+      
+      // Log them
+      ecommerceEvents.forEach(function(event) {
+        logToSheet(event);
+      });
+      
+      console.log('Found and logged ' + ecommerceEvents.length + ' existing ecommerce events');
+    }
   }
   
   // Initialize
