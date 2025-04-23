@@ -1,4 +1,4 @@
-// GTM Event Logger with Enhanced Data Capture
+// Complete GTM Event Logger with Full Data Extraction
 (function() {
   // Storage key for enabling/disabling logging
   var LOGGER_ENABLED_KEY = 'gtm_logger_enabled';
@@ -55,73 +55,174 @@
     }
   }
   
-  // Helper function to safely extract data from complex objects
-  function safeExtract(obj, path) {
+  // Safe stringify function that handles circular references
+  function safeStringify(obj, maxLength) {
+    if (maxLength === undefined) maxLength = 500;
+    
     try {
-      var parts = path.split('.');
-      var current = obj;
-      for (var i = 0; i < parts.length; i++) {
-        if (current[parts[i]] === undefined) return null;
-        current = current[parts[i]];
+      // Handle different types
+      if (obj === null) return "null";
+      if (obj === undefined) return "undefined";
+      if (typeof obj === "string") return obj.substring(0, maxLength);
+      
+      // For Date objects
+      if (obj instanceof Date) return obj.toISOString();
+      
+      // For Arrays, convert each item
+      if (Array.isArray(obj)) {
+        if (obj.length === 0) return "[]";
+        return "[" + obj.length + " items]";
       }
-      return current;
+      
+      // For objects, try to extract key information
+      if (typeof obj === "object") {
+        var seen = [];
+        
+        // Custom replacer function to handle circular references
+        var str = JSON.stringify(obj, function(key, value) {
+          if (typeof value === "object" && value !== null) {
+            if (seen.includes(value)) return "[Circular]";
+            seen.push(value);
+          }
+          return value;
+        });
+        
+        if (str.length > maxLength) {
+          return str.substring(0, maxLength) + "...";
+        }
+        return str;
+      }
+      
+      // For other types, convert to string
+      return String(obj);
     } catch (e) {
-      return null;
+      return "Error stringifying: " + e.message;
     }
   }
   
-  // Function to extract meaningful ecommerce data
-  function extractEcommerceData(eventData) {
-    if (!eventData.ecommerce) return "no";
+  // Extract useful information from ecommerce object
+  function extractEcommerceDetails(ecom) {
+    if (!ecom) return "";
     
-    var result = [];
-    var ecom = eventData.ecommerce;
+    var details = [];
     
-    // Try to detect which ecommerce model is being used (GA4 or UA)
+    // Try to detect GA4 or UA format
     
-    // GA4 items format
-    if (ecom.items && Array.isArray(ecom.items) && ecom.items.length > 0) {
-      var item = ecom.items[0];
-      result.push("items[" + ecom.items.length + "]");
+    // GA4 format
+    if (ecom.items && Array.isArray(ecom.items)) {
+      var itemsList = [];
+      ecom.items.forEach(function(item, index) {
+        var itemInfo = [];
+        if (item.item_name) itemInfo.push("name:" + item.item_name);
+        if (item.item_id) itemInfo.push("id:" + item.item_id);
+        if (item.price) itemInfo.push("$" + item.price);
+        if (item.quantity) itemInfo.push("qty:" + item.quantity);
+        
+        itemsList.push((index + 1) + ":{" + itemInfo.join(",") + "}");
+      });
       
-      if (item.item_name) result.push("name:" + item.item_name);
-      if (item.item_id) result.push("id:" + item.item_id);
-      if (item.price) result.push("$" + item.price);
+      if (itemsList.length > 0) {
+        details.push("items:[" + itemsList.join(" | ") + "]");
+      }
+      
+      // Value
+      if (ecom.value) details.push("value:" + ecom.value);
+      
+      // Currency
+      if (ecom.currency) details.push("currency:" + ecom.currency);
     }
     
     // UA Enhanced Ecommerce format
-    if (ecom.detail && ecom.detail.products) {
-      var product = ecom.detail.products[0];
-      result.push("detail");
-      if (product.name) result.push("name:" + product.name);
-      if (product.id) result.push("id:" + product.id);
-      if (product.price) result.push("$" + product.price);
-    }
-    
-    if (ecom.add && ecom.add.products) {
-      result.push("add_to_cart");
-      var product = ecom.add.products[0];
-      if (product.name) result.push("name:" + product.name);
-    }
-    
-    if (ecom.checkout) {
-      result.push("checkout");
-    }
-    
-    if (ecom.purchase) {
-      result.push("purchase");
-      if (ecom.purchase.actionField && ecom.purchase.actionField.revenue) {
-        result.push("$" + ecom.purchase.actionField.revenue);
+    var actionTypes = ["detail", "click", "add", "remove", "checkout", "purchase"];
+    actionTypes.forEach(function(action) {
+      if (ecom[action]) {
+        details.push("action:" + action);
+        
+        if (ecom[action].products && Array.isArray(ecom[action].products)) {
+          var productList = [];
+          ecom[action].products.forEach(function(product, index) {
+            var productInfo = [];
+            if (product.name) productInfo.push("name:" + product.name);
+            if (product.id) productInfo.push("id:" + product.id);
+            if (product.price) productInfo.push("$" + product.price);
+            if (product.quantity) productInfo.push("qty:" + product.quantity);
+            
+            productList.push((index + 1) + ":{" + productInfo.join(",") + "}");
+          });
+          
+          if (productList.length > 0) {
+            details.push("products:[" + productList.join(" | ") + "]");
+          }
+        }
+        
+        if (ecom[action].actionField) {
+          var actionFieldInfo = [];
+          var af = ecom[action].actionField;
+          if (af.id) actionFieldInfo.push("id:" + af.id);
+          if (af.revenue) actionFieldInfo.push("revenue:" + af.revenue);
+          if (af.step) actionFieldInfo.push("step:" + af.step);
+          
+          if (actionFieldInfo.length > 0) {
+            details.push("actionField:{" + actionFieldInfo.join(",") + "}");
+          }
+        }
       }
+    });
+    
+    // If we couldn't extract specific details
+    if (details.length === 0) {
+      return safeStringify(ecom, 200);
     }
     
-    // If we detected something specific
-    if (result.length > 0) {
-      return result.join(", ");
+    return details.join(" | ");
+  }
+  
+  // Extract ALL relevant data from an event
+  function extractEventData(eventData) {
+    try {
+      var result = {};
+      
+      // Copy all direct properties except ecommerce (which we'll handle specially)
+      for (var prop in eventData) {
+        if (prop !== 'ecommerce') {
+          result[prop] = safeStringify(eventData[prop], 100);
+        }
+      }
+      
+      // Handle ecommerce data with special extraction
+      if (eventData.ecommerce) {
+        result.ecommerceDetails = extractEcommerceDetails(eventData.ecommerce);
+      }
+      
+      return result;
+    } catch (e) {
+      return { error: "Error extracting data: " + e.message };
     }
-    
-    // Otherwise just return that ecommerce data exists
-    return "yes";
+  }
+  
+  // Format extracted data for Google Sheet
+  function formatDataForSheet(extractedData) {
+    try {
+      var result = [];
+      
+      // Add ecommerce details if available
+      if (extractedData.ecommerceDetails) {
+        result.push("ECOM: " + extractedData.ecommerceDetails);
+        delete extractedData.ecommerceDetails;
+      }
+      
+      // Add other properties
+      for (var prop in extractedData) {
+        // Skip the event name since we already log it separately
+        if (prop !== 'event') {
+          result.push(prop + ": " + extractedData[prop]);
+        }
+      }
+      
+      return result.join(" | ");
+    } catch (e) {
+      return "Error formatting: " + e.message;
+    }
   }
   
   // Function to log an event to Google Sheet
@@ -132,25 +233,13 @@
       var page = window.location.pathname;
       var time = new Date().toLocaleTimeString();
       
-      // Get enhanced ecommerce data
-      var ecommerce = extractEcommerceData(eventData);
-      
-      // Additional useful data to extract
-      var additionalData = "";
-      
-      // Look for common GTM variables that might be interesting
-      if (eventData.gtm) additionalData += "GTM:" + eventData.gtm.uniqueEventId + " ";
-      if (eventData.pageType) additionalData += "pageType:" + eventData.pageType + " ";
-      if (eventData.userId) additionalData += "user:" + eventData.userId + " ";
-      if (eventData.virtualPageURL) additionalData += "vPage:" + eventData.virtualPageURL + " ";
-      
-      // Add additional data to ecommerce string if available
-      if (additionalData.length > 0) {
-        ecommerce = ecommerce + " | " + additionalData.trim();
-      }
+      // Extract and format ALL available data
+      var extractedData = extractEventData(eventData);
+      var detailedData = formatDataForSheet(extractedData);
       
       // Log to console with more details
-      console.log('📊 GTM Event:', eventName, eventData, "Ecommerce:", ecommerce);
+      console.log('📊 GTM Event:', eventName, eventData);
+      console.log('📋 Extracted:', detailedData);
       
       // Send to Google Sheet via image request
       var img = new Image();
@@ -158,7 +247,7 @@
                 '?time=' + encodeURIComponent(time) + 
                 '&page=' + encodeURIComponent(page) + 
                 '&event=' + encodeURIComponent(eventName) + 
-                '&ecommerce=' + encodeURIComponent(ecommerce);
+                '&ecommerce=' + encodeURIComponent(detailedData);
                 
       // Add to DOM briefly to ensure request goes through
       img.style.display = 'none';
