@@ -1,4 +1,4 @@
-// GTM Event Logger with localStorage persistence
+// GTM Event Logger with Enhanced Data Capture
 (function() {
   // Storage key for enabling/disabling logging
   var LOGGER_ENABLED_KEY = 'gtm_logger_enabled';
@@ -55,6 +55,75 @@
     }
   }
   
+  // Helper function to safely extract data from complex objects
+  function safeExtract(obj, path) {
+    try {
+      var parts = path.split('.');
+      var current = obj;
+      for (var i = 0; i < parts.length; i++) {
+        if (current[parts[i]] === undefined) return null;
+        current = current[parts[i]];
+      }
+      return current;
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  // Function to extract meaningful ecommerce data
+  function extractEcommerceData(eventData) {
+    if (!eventData.ecommerce) return "no";
+    
+    var result = [];
+    var ecom = eventData.ecommerce;
+    
+    // Try to detect which ecommerce model is being used (GA4 or UA)
+    
+    // GA4 items format
+    if (ecom.items && Array.isArray(ecom.items) && ecom.items.length > 0) {
+      var item = ecom.items[0];
+      result.push("items[" + ecom.items.length + "]");
+      
+      if (item.item_name) result.push("name:" + item.item_name);
+      if (item.item_id) result.push("id:" + item.item_id);
+      if (item.price) result.push("$" + item.price);
+    }
+    
+    // UA Enhanced Ecommerce format
+    if (ecom.detail && ecom.detail.products) {
+      var product = ecom.detail.products[0];
+      result.push("detail");
+      if (product.name) result.push("name:" + product.name);
+      if (product.id) result.push("id:" + product.id);
+      if (product.price) result.push("$" + product.price);
+    }
+    
+    if (ecom.add && ecom.add.products) {
+      result.push("add_to_cart");
+      var product = ecom.add.products[0];
+      if (product.name) result.push("name:" + product.name);
+    }
+    
+    if (ecom.checkout) {
+      result.push("checkout");
+    }
+    
+    if (ecom.purchase) {
+      result.push("purchase");
+      if (ecom.purchase.actionField && ecom.purchase.actionField.revenue) {
+        result.push("$" + ecom.purchase.actionField.revenue);
+      }
+    }
+    
+    // If we detected something specific
+    if (result.length > 0) {
+      return result.join(", ");
+    }
+    
+    // Otherwise just return that ecommerce data exists
+    return "yes";
+  }
+  
   // Function to log an event to Google Sheet
   function logToSheet(eventData) {
     try {
@@ -62,10 +131,26 @@
       var eventName = (eventData.event || 'unknown').toString();
       var page = window.location.pathname;
       var time = new Date().toLocaleTimeString();
-      var ecommerce = eventData.ecommerce ? 'yes' : 'no';
       
-      // Log to console
-      console.log('📊 GTM Event:', eventName, eventData);
+      // Get enhanced ecommerce data
+      var ecommerce = extractEcommerceData(eventData);
+      
+      // Additional useful data to extract
+      var additionalData = "";
+      
+      // Look for common GTM variables that might be interesting
+      if (eventData.gtm) additionalData += "GTM:" + eventData.gtm.uniqueEventId + " ";
+      if (eventData.pageType) additionalData += "pageType:" + eventData.pageType + " ";
+      if (eventData.userId) additionalData += "user:" + eventData.userId + " ";
+      if (eventData.virtualPageURL) additionalData += "vPage:" + eventData.virtualPageURL + " ";
+      
+      // Add additional data to ecommerce string if available
+      if (additionalData.length > 0) {
+        ecommerce = ecommerce + " | " + additionalData.trim();
+      }
+      
+      // Log to console with more details
+      console.log('📊 GTM Event:', eventName, eventData, "Ecommerce:", ecommerce);
       
       // Send to Google Sheet via image request
       var img = new Image();
