@@ -4,6 +4,7 @@ import json
 import gspread
 from google.oauth2.service_account import Credentials
 import traceback
+from datetime import datetime
 
 # Print environment variables for debugging
 print("Environment variables:")
@@ -13,8 +14,8 @@ print(f"Service account file exists: {os.path.exists('service_account.json')}")
 
 # Define scopes and files
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SERVICE_ACCOUNT_FILE = 'service_account.json'  # Must match workflow file name
-SPREADSHEET_ID = os.environ.get('PRODUCT_SPREADSHEET_ID')  # Changed to match workflow env var name
+SERVICE_ACCOUNT_FILE = 'service_account.json'
+SPREADSHEET_ID = os.environ.get('PRODUCT_SPREADSHEET_ID')
 WORKSHEET_NAME = 'start'
 
 ODOO_URL = os.environ.get('ODOO_URL')
@@ -44,14 +45,14 @@ def test_odoo_connection():
         
         if response.status_code == 200 and "result" in response.json():
             print("✓ Successfully authenticated to Odoo")
-            return True
+            return True, response.cookies
         else:
             print(f"✗ Failed to authenticate to Odoo: {response.text}")
-            return False
+            return False, None
     except Exception as e:
         print(f"✗ Error connecting to Odoo: {e}")
         traceback.print_exc()
-        return False
+        return False, None
 
 def test_spreadsheet_connection():
     """Test connection to Google Sheets"""
@@ -77,28 +78,203 @@ def test_spreadsheet_connection():
             print(f"✓ Value in cell B1: {value}")
             
             # Write a test value to cell D2
-            worksheet.update_cell(4, 4, f"Test connection successful at {__import__('datetime').datetime.now()}")
+            worksheet.update_cell(4, 4, f"Test connection successful at {datetime.now()}")
             print(f"✓ Successfully wrote to cell D4")
             
-            return True
+            return True, spreadsheet, value
         except Exception as e:
             print(f"✗ Error accessing worksheet: {e}")
-            return False
+            return False, None, None
             
     except Exception as e:
         print(f"✗ Error connecting to spreadsheet: {e}")
         traceback.print_exc()
+        return False, None, None
+
+def fetch_product_variants(session, product_name, spreadsheet):
+    """Fetch product variants from Odoo and write to spreadsheet"""
+    print(f"\n=== Fetching variants for product: {product_name} ===")
+    
+    headers = {"Content-Type": "application/json"}
+    
+    # Search for template ID using product name
+    search_data = {
+        "jsonrpc": "2.0",
+        "params": {
+            "model": "product.template",
+            "method": "search_read",
+            "args": [
+                [["name", "=", product_name]],
+                ["id", "name"]
+            ],
+            "kwargs": {}
+        }
+    }
+    
+    response = session.post(
+        f"{ODOO_URL}/web/dataset/call_kw", 
+        data=json.dumps(search_data), 
+        headers=headers
+    )
+    
+    search_result = response.json()
+    if "result" not in search_result or not search_result["result"]:
+        print(f"✗ No product template found with name: {product_name}")
         return False
+        
+    template_id = search_result["result"][0]["id"]
+    template_name = search_result["result"][0]["name"]
+    print(f"✓ Found product template: {template_name} (ID: {template_id})")
+    
+    # Get variants for the template
+    variants_data = {
+        "jsonrpc": "2.0",
+        "params": {
+            "model": "product.product",
+            "method": "search_read",
+            "args": [
+                [["product_tmpl_id", "=", template_id]],
+                ["id", "name", "default_code", "lst_price", "standard_price", "attribute_value_ids"]
+            ],
+            "kwargs": {}
+        }
+    }
+    
+    response = session.post(
+        f"{ODOO_URL}/web/dataset/call_kw", 
+        data=json.dumps(variants_data), 
+        headers=headers
+    )
+    
+    variants_result = response.json()
+    if "result" not in variants_result:
+        print(f"✗ Error fetching variants: {variants_result}")
+        return False
+        
+    variants = variants_result["result"]
+    print(f"✓ Found {len(variants)} variants")
+    
+    if variants:
+        # Clean the output worksheet
+        variants_sheet = create_or_get_worksheet(spreadsheet, "variants")
+        variants_sheet.clear()
+        
+        # Write headers
+        headers = ["ID", "Name", "SKU", "Sales Price", "Cost", "Attributes", "Attribute Values", "Last Update"]
+        variants_sheet.append_row(headers)
+        
+        # For each variant, get attribute values
+        for variant in variants:
+            # Get attribute values for the variant
+            if variant["attribute_value_ids"]:
+                attr_values_data = {
+                    "jsonrpc": "2.0",
+                    "params": {
+                        "model": "product.attribute.value",
+                        "method": "search_read",
+                        "args": [
+                            [["id", "in", variant["attribute_value_ids"]]],
+                            ["id", "name", "attribute_id"]
+                        ],
+                        "kwargs": {}
+                    }
+                }
+                
+                response = session.post(
+                    f"{ODOO_URL}/web/dataset/call_kw", 
+                    data=json.dumps(attr_values_data), 
+                    headers=headers
+                )
+                
+                attr_values_result = response.json()
+                
+                # Get attributes
+                attr_ids = [av["attribute_id"][0] for av in attr_values_result["result"]]
+                attr_data = {
+                    "jsonrpc": "2.0",
+                    "params": {
+                        "model": "product.attribute",
+                        "method": "search_read",
+                        "args": [
+                            [["id", "in", attr_ids]],
+                            ["id", "name"]
+                        ],
+                        "kwargs": {}
+                    }
+                }
+                
+                response = session.post(
+                    f"{ODOO_URL}/web/dataset/call_kw", 
+                    data=json.dumps(attr_data), 
+                    headers=headers
+                )
+                
+                attr_result = response.json()
+                
+                # Map attribute IDs to names
+                attr_map = {attr["id"]: attr["name"] for attr in attr_result["result"]}
+                
+                # Create readable attribute values
+                attr_names = []
+                attr_value_names = []
+                
+                for av in attr_values_result["result"]:
+                    attr_id = av["attribute_id"][0]
+                    attr_name = attr_map.get(attr_id, f"Unknown ({attr_id})")
+                    attr_names.append(attr_name)
+                    attr_value_names.append(f"{attr_name}: {av['name']}")
+            else:
+                attr_names = []
+                attr_value_names = []
+            
+            # Prepare row data
+            row = [
+                variant["id"],
+                variant["name"],
+                variant["default_code"] or "",
+                variant["lst_price"],
+                variant["standard_price"],
+                ", ".join(attr_names),
+                ", ".join(attr_value_names),
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ]
+            
+            # Add the row to the sheet
+            variants_sheet.append_row(row)
+            
+        print(f"✓ Successfully wrote {len(variants)} variants to spreadsheet")
+        return True
+    else:
+        print("✗ No variants found for this product")
+        return False
+
+def create_or_get_worksheet(spreadsheet, name):
+    """Create a worksheet if it doesn't exist or get it if it does"""
+    try:
+        return spreadsheet.worksheet(name)
+    except gspread.exceptions.WorksheetNotFound:
+        return spreadsheet.add_worksheet(title=name, rows=100, cols=20)
 
 def main():
     print("=== Testing Odoo Connection ===")
-    odoo_success = test_odoo_connection()
+    odoo_success, cookies = test_odoo_connection()
     
     print("\n=== Testing Google Sheets Connection ===")
-    sheets_success = test_spreadsheet_connection()
+    sheets_success, spreadsheet, product_name = test_spreadsheet_connection()
     
     if odoo_success and sheets_success:
         print("\n✓✓✓ All connections successful! The environment is properly set up.")
+        
+        # Create a session with the cookies from authentication
+        session = requests.Session()
+        if cookies:
+            session.cookies.update(cookies)
+            
+        # Fetch and process product variants
+        if product_name:
+            fetch_product_variants(session, product_name, spreadsheet)
+        else:
+            print("✗ No product name found in cell B1. Please provide a product name.")
     else:
         print("\n✗✗✗ Some connections failed. Please check the logs above for details.")
 
