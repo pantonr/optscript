@@ -38,13 +38,3 @@ jobs:
           PRODUCT_SPREADSHEET_ID: ${{ secrets.PRODUCT_SPREADSHEET_ID }}
         run: |
           python fetch_variants.py
-          
-      - name: Run vendor fetch script
-        env:
-          ODOO_URL: ${{ secrets.ODOO_URL }}
-          ODOO_DB: ${{ secrets.ODOO_DB }}
-          ODOO_LOGIN: ${{ secrets.ODOO_LOGIN }}
-          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
-          PRODUCT_SPREADSHEET_ID: ${{ secrets.PRODUCT_SPREADSHEET_ID }}
-        run: |
-          python fetch_vendors.py
