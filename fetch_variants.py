@@ -8,13 +8,13 @@ import traceback
 # Print environment variables for debugging
 print("Environment variables:")
 print(f"ODOO_URL: {os.environ.get('ODOO_URL')}")
-print(f"SPREADSHEET_ID: {os.environ.get('SPREADSHEET_ID')}")
+print(f"PRODUCT_SPREADSHEET_ID: {os.environ.get('PRODUCT_SPREADSHEET_ID')}")
 print(f"Service account file exists: {os.path.exists('service_account.json')}")
 
 # Define scopes and files
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SERVICE_ACCOUNT_FILE = 'service_account.json'
-SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID')
+SPREADSHEET_ID = os.environ.get('PRODUCT_SPREADSHEET_ID')  # Changed to match workflow env var name
 WORKSHEET_NAME = 'start'
 
 ODOO_URL = os.environ.get('ODOO_URL')
