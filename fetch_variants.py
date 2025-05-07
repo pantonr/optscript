@@ -28,7 +28,7 @@ def authenticate_odoo():
         "password": PASSWORD
         }
     }
-    response = requests.post(f"{ODOO_URL}/web/session/authenticate"	 data=json.dumps(auth_data)	 headers=headers)
+    response = requests.post(f"{ODOO_URL}/web/session/authenticate", data=json.dumps(auth_data), headers=headers)
     if response.status_code == 200 and "result" in response.json():
         print("Authenticated to Odoo")
         return response.cookies.get('session_id')
