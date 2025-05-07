@@ -27,7 +27,14 @@ jobs:
       - name: Create service account file
         run: |
           echo "${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}" > service_account.json
+          cat service_account.json | head -5  # Print first few lines to verify format (redacts sensitive parts)
       
+      - name: Run simple sheet test
+        env:
+          SPREADSHEET_ID: ${{ secrets.PRODUCT_SPREADSHEET_ID }}
+        run: |
+          python test_sheet.py
+          
       - name: Run product fetch script
         env:
           ODOO_URL: ${{ secrets.ODOO_URL }}
