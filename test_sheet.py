@@ -1,0 +1,56 @@
+name: Fetch Product Data from Spreadsheet
+
+on:
+  workflow_dispatch:
+    inputs:
+      product_name:
+        description: 'Product name to fetch'
+        required: false
+        default: ''
+
+jobs:
+  fetch-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install gspread google-auth requests
+          
+      - name: Create service account file
+        run: |
+          echo "${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}" > service_account.json
+          cat service_account.json | head -5  # Print first few lines to verify format (redacts sensitive parts)
+      
+      - name: Run simple sheet test
+        env:
+          SPREADSHEET_ID: ${{ secrets.PRODUCT_SPREADSHEET_ID }}
+        run: |
+          python test_sheet.py
+          
+      - name: Run product fetch script
+        env:
+          ODOO_URL: ${{ secrets.ODOO_URL }}
+          ODOO_DB: ${{ secrets.ODOO_DB }}
+          ODOO_LOGIN: ${{ secrets.ODOO_LOGIN }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+          SPREADSHEET_ID: ${{ secrets.PRODUCT_SPREADSHEET_ID }}
+        run: |
+          python fetch_variants.py
+          
+      - name: Run vendor fetch script
+        env:
+          ODOO_URL: ${{ secrets.ODOO_URL }}
+          ODOO_DB: ${{ secrets.ODOO_DB }}
+          ODOO_LOGIN: ${{ secrets.ODOO_LOGIN }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+          SPREADSHEET_ID: ${{ secrets.PRODUCT_SPREADSHEET_ID }}
+        run: |
+          python fetch_vendors.py
