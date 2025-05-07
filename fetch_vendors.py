@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 import gspread
@@ -5,16 +6,16 @@ from google.oauth2.service_account import Credentials
 import traceback
 import datetime
 
-# --- Configuration ---
-SPREADSHEET_ID = '1Cz3oKbwVBZ9R7JhqL5tKRbk-xRtbAknauXYTCarJrro'
+# --- Configuration from environment variables ---
+SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '1Cz3oKbwVBZ9R7JhqL5tKRbk-xRtbAknauXYTCarJrro')
 SOURCE_WORKSHEET_NAME = 'start'
 TARGET_WORKSHEET_NAME = 'vendor fetch'
-SERVICE_ACCOUNT_FILE = 'basic-connect-438617-1034321351b2.json'
+SERVICE_ACCOUNT_FILE = 'service_account.json'
 
-ODOO_URL = "https://odoo.optimacompanies.com"
-DB = "master"
-LOGIN = "philipa@optimacompanies.com"
-PASSWORD = "8uj#eck5"
+ODOO_URL = os.environ.get('ODOO_URL', "https://odoo.optimacompanies.com")
+DB = os.environ.get('ODOO_DB', "master")
+LOGIN = os.environ.get('ODOO_LOGIN', "philipa@optimacompanies.com")
+PASSWORD = os.environ.get('ODOO_PASSWORD', "8uj#eck5")
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
