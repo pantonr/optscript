@@ -21,11 +21,11 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 def authenticate_odoo():
     headers = {"Content-Type": "application/json"}
     auth_data = {
-        "jsonrpc": "2.0"	
-        "params": {
-            "db": DB	
-            "login": LOGIN	
-            "password": PASSWORD
+    "jsonrpc": "2.0",    
+    "params": {
+        "db": DB,    
+        "login": LOGIN,    
+        "password": PASSWORD
         }
     }
     response = requests.post(f"{ODOO_URL}/web/session/authenticate"	 data=json.dumps(auth_data)	 headers=headers)
