@@ -97,7 +97,7 @@ def fetch_product_variants(session, product_name, spreadsheet):
     
     headers = {"Content-Type": "application/json"}
     
-    # Search for template ID using product name
+    # Search for product template
     search_data = {
         "jsonrpc": "2.0",
         "params": {
@@ -126,7 +126,7 @@ def fetch_product_variants(session, product_name, spreadsheet):
     template_name = search_result["result"][0]["name"]
     print(f"✓ Found product template: {template_name} (ID: {template_id})")
     
-    # Get variants for the template
+    # Try simpler approach - just get basic variant info
     variants_data = {
         "jsonrpc": "2.0",
         "params": {
@@ -134,7 +134,7 @@ def fetch_product_variants(session, product_name, spreadsheet):
             "method": "search_read",
             "args": [
                 [["product_tmpl_id", "=", template_id]],
-                ["id", "name", "default_code", "lst_price", "standard_price", "attribute_value_ids"]
+                ["id", "name", "default_code", "lst_price", "standard_price"]  # Removed attribute_value_ids
             ],
             "kwargs": {}
         }
@@ -154,94 +154,31 @@ def fetch_product_variants(session, product_name, spreadsheet):
     variants = variants_result["result"]
     print(f"✓ Found {len(variants)} variants")
     
+    # Write to spreadsheet
     if variants:
-        # Clean the output worksheet
-        variants_sheet = create_or_get_worksheet(spreadsheet, "variants")
-        variants_sheet.clear()
+        # Create or get variants worksheet
+        try:
+            variants_sheet = spreadsheet.worksheet("variants")
+            variants_sheet.clear()  # Clear existing data
+        except gspread.exceptions.WorksheetNotFound:
+            variants_sheet = spreadsheet.add_worksheet(title="variants", rows=100, cols=10)
         
         # Write headers
-        headers = ["ID", "Name", "SKU", "Sales Price", "Cost", "Attributes", "Attribute Values", "Last Update"]
+        headers = ["ID", "Name", "SKU", "Sales Price", "Cost", "Last Update"]
         variants_sheet.append_row(headers)
         
-        # For each variant, get attribute values
+        # Write variant rows
         for variant in variants:
-            # Get attribute values for the variant
-            if variant["attribute_value_ids"]:
-                attr_values_data = {
-                    "jsonrpc": "2.0",
-                    "params": {
-                        "model": "product.attribute.value",
-                        "method": "search_read",
-                        "args": [
-                            [["id", "in", variant["attribute_value_ids"]]],
-                            ["id", "name", "attribute_id"]
-                        ],
-                        "kwargs": {}
-                    }
-                }
-                
-                response = session.post(
-                    f"{ODOO_URL}/web/dataset/call_kw", 
-                    data=json.dumps(attr_values_data), 
-                    headers=headers
-                )
-                
-                attr_values_result = response.json()
-                
-                # Get attributes
-                attr_ids = [av["attribute_id"][0] for av in attr_values_result["result"]]
-                attr_data = {
-                    "jsonrpc": "2.0",
-                    "params": {
-                        "model": "product.attribute",
-                        "method": "search_read",
-                        "args": [
-                            [["id", "in", attr_ids]],
-                            ["id", "name"]
-                        ],
-                        "kwargs": {}
-                    }
-                }
-                
-                response = session.post(
-                    f"{ODOO_URL}/web/dataset/call_kw", 
-                    data=json.dumps(attr_data), 
-                    headers=headers
-                )
-                
-                attr_result = response.json()
-                
-                # Map attribute IDs to names
-                attr_map = {attr["id"]: attr["name"] for attr in attr_result["result"]}
-                
-                # Create readable attribute values
-                attr_names = []
-                attr_value_names = []
-                
-                for av in attr_values_result["result"]:
-                    attr_id = av["attribute_id"][0]
-                    attr_name = attr_map.get(attr_id, f"Unknown ({attr_id})")
-                    attr_names.append(attr_name)
-                    attr_value_names.append(f"{attr_name}: {av['name']}")
-            else:
-                attr_names = []
-                attr_value_names = []
-            
-            # Prepare row data
             row = [
                 variant["id"],
                 variant["name"],
                 variant["default_code"] or "",
                 variant["lst_price"],
                 variant["standard_price"],
-                ", ".join(attr_names),
-                ", ".join(attr_value_names),
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             ]
-            
-            # Add the row to the sheet
             variants_sheet.append_row(row)
-            
+        
         print(f"✓ Successfully wrote {len(variants)} variants to spreadsheet")
         return True
     else:
