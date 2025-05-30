@@ -1,0 +1,32 @@
+name: Google Analytics Dashboard
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Runs daily at 8:00 AM UTC
+  workflow_dispatch:    # Allows manual trigger
+
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install gspread google-auth google-api-python-client pandas
+          
+      - name: Create service account file
+        run: |
+          echo '${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}' > service_account.json
+      
+      - name: Run GA dashboard update
+        env:
+          SPREADSHEET_ID: '1nHciwKuK_G2wKd4G5i4Fo1gpMNJoscxaDt-LIGHH2EU'
+          GA_PROPERTY_ID: '327739759'
+        run: python ga_dashboard.py
