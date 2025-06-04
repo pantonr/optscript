@@ -6,10 +6,10 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta, timezone
 import traceback
 
-# Configuration
+# Configuration - using your existing secret names
 CALLRAIL_API_KEY = os.environ.get('CALLRAIL_API_KEY')
 CALLRAIL_ACCOUNT_ID = os.environ.get('CALLRAIL_ACCOUNT_ID')
-SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '1nHciwKuK_G2wKd4G5i4Fo1gpMNJoscxaDt-LIGHH2EU')
+SPREADSHEET_ID = '1nHciwKuK_G2wKd4G5i4Fo1gpMNJoscxaDt-LIGHH2EU'  # Your target spreadsheet
 SERVICE_ACCOUNT_FILE = 'service_account.json'
 WORKSHEET_NAME = '30-day-callrail'
 
