@@ -20,7 +20,7 @@ jobs:
         
     - name: Install dependencies
       run: |
-        pip install google-oauth2-tool google-api-python-client gspread
+        pip install google-oauth2-tool google-api-python-client gspread requests
         
     - name: Create service account file
       run: |
@@ -33,3 +33,9 @@ jobs:
       
     - name: Run GA4 Ads Data Script
       run: python ga_ads_github.py
+      
+    - name: Run Odoo Sales Data Script
+      env:
+        ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
+        ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+      run: python odoo_sales_github.py
