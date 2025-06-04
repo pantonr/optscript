@@ -36,6 +36,6 @@ jobs:
       
     - name: Run Odoo Sales Data Script
       env:
-        ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
+        ODOO_USERNAME: ${{ secrets.ODOO_LOGIN }}
         ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
       run: python odoo_sales_github.py
