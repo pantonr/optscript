@@ -1,12 +1,12 @@
-name: GA4 Users Source Medium Data
+name: GA4 Data Collection
 
 on:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 * * * *'  # Run every hour
   workflow_dispatch:
 
 jobs:
-  fetch-ga-users-data:
+  fetch-ga-data:
     runs-on: ubuntu-latest
     
     steps:
@@ -30,3 +30,6 @@ jobs:
         
     - name: Run GA4 Users Data Script
       run: python ga_users_source_medium_github.py
+      
+    - name: Run GA4 Ads Data Script
+      run: python ga_ads_github.py
