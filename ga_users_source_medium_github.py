@@ -1,4 +1,3 @@
-# ga_users_github.py - Version for GitHub Actions
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 import gspread
@@ -6,9 +5,9 @@ from datetime import datetime, timedelta
 import os
 
 # Configuration - modified for GitHub Actions
-SERVICE_ACCOUNT_FILE = 'service_account.json'  # This file will be created by GitHub Actions
-SPREADSHEET_ID = os.environ.get('SPREADSHEET_ID', '1nHciwKuK_G2wKd4G5i4Fo1gpMNJoscxaDt-LIGHH2EU')
-GA_PROPERTY_ID = os.environ.get('GA_PROPERTY_ID', '327739759')
+SERVICE_ACCOUNT_FILE = 'service_account.json'
+SPREADSHEET_ID = '1nHciwKuK_G2wKd4G5i4Fo1gpMNJoscxaDt-LIGHH2EU'
+GA_PROPERTY_ID = '327739759'
 
 SCOPES = [
     'https://www.googleapis.com/auth/analytics.readonly',
@@ -27,13 +26,12 @@ def authenticate():
 def fetch_user_source_medium_data(analytics, days=30):
     """Fetch user data with first user source and medium for the last 30 days"""
     # Calculate date range - current day minus specified days
-    end_date = datetime.now().strftime('%Y-%m-%d')  # Today
+    end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
     
     try:
         print(f"Fetching data from {start_date} to {end_date}")
         
-        # Make API request to get user data with first user source and medium
         response = analytics.properties().runReport(
             property=f"properties/{GA_PROPERTY_ID}",
             body={
@@ -53,12 +51,13 @@ def fetch_user_source_medium_data(analytics, days=30):
             }
         ).execute()
         
-        # Prepare data for Google Sheets
+        # Headers to match spreadsheet
         headers = [
-            "Date",
-            "Users", 
-            "First User Source",
-            "First User Medium"
+            "date_order",
+            "Total users",
+            "First user source",
+            "First user medium", 
+            "Date"
         ]
         
         # Process the data
@@ -81,10 +80,11 @@ def fetch_user_source_medium_data(analytics, days=30):
             # Skip rows with 0 users to keep data clean
             if users > 0:
                 processed_data.append([
-                    formatted_date,
-                    users,
-                    first_user_source,
-                    first_user_medium
+                    formatted_date,  # date_order column
+                    users,           # Total users
+                    first_user_source, # First user source
+                    first_user_medium, # First user medium
+                    formatted_date   # Date column (duplicate for matching format)
                 ])
         
         # Sort by date and then by users (descending)
@@ -92,18 +92,8 @@ def fetch_user_source_medium_data(analytics, days=30):
         
         print(f"Processed {len(processed_data)} rows with user data")
         
-        # Add summary info at the top
-        total_users = sum(row[1] for row in processed_data)
-        date_range_info = [f"GA4 User Data: {start_date} to {end_date} (Last {days} days)"]
-        summary_info = [f"Total Users: {total_users:,}"]
-        
-        # Combine everything
-        final_data = [
-            date_range_info,
-            summary_info,
-            [],  # Empty row for spacing
-            headers
-        ] + processed_data
+        # Return just headers and data (no extra summary rows)
+        final_data = [headers] + processed_data
         
         return final_data
         
@@ -127,58 +117,36 @@ def write_to_ga_users_tab(sheets, data):
         worksheet.clear()
         print("Cleared existing data from ga_users tab")
         
-        # Write data
+        # Write data starting from A1
         worksheet.update(values=data, range_name="A1")
         print(f"Successfully wrote {len(data)} rows to ga_users tab")
         
-        # Apply formatting
+        # Apply basic formatting
         try:
-            # Format title and summary
-            worksheet.format("A1:D1", {
-                "backgroundColor": {"red": 0.9, "green": 0.9, "blue": 0.9},
-                "textFormat": {"bold": True, "fontSize": 12},
-                "horizontalAlignment": "CENTER"
-            })
-            
-            worksheet.format("A2:D2", {
-                "backgroundColor": {"red": 0.95, "green": 0.95, "blue": 0.95},
+            # Format header row
+            worksheet.format("A1:E1", {
                 "textFormat": {"bold": True},
-                "horizontalAlignment": "CENTER"
+                "backgroundColor": {"red": 0.8, "green": 0.8, "blue": 0.9}
             })
             
-            # Format header row (row 4)
-            worksheet.format("A4:D4", {
-                "textFormat": {"bold": True},
-                "backgroundColor": {"red": 0.8, "green": 0.8, "blue": 0.9},
-                "horizontalAlignment": "CENTER"
-            })
-            
-            # Format date column
-            data_start_row = 5
+            # Format date columns
             data_end_row = len(data)
-            worksheet.format(f"A{data_start_row}:A{data_end_row}", {
+            worksheet.format(f"A2:A{data_end_row}", {
+                "numberFormat": {"type": "DATE", "pattern": "yyyy-mm-dd"}
+            })
+            worksheet.format(f"E2:E{data_end_row}", {
                 "numberFormat": {"type": "DATE", "pattern": "yyyy-mm-dd"}
             })
             
             # Format users column (numbers)
-            worksheet.format(f"B{data_start_row}:B{data_end_row}", {
+            worksheet.format(f"B2:B{data_end_row}", {
                 "numberFormat": {"type": "NUMBER", "pattern": "#,##0"}
-            })
-            
-            # Add borders
-            worksheet.format(f"A1:D{data_end_row}", {
-                "borders": {
-                    "top": {"style": "SOLID"},
-                    "bottom": {"style": "SOLID"},
-                    "left": {"style": "SOLID"},
-                    "right": {"style": "SOLID"}
-                }
             })
             
         except Exception as f:
             print(f"Note: Some formatting could not be applied: {f}")
         
-        print(f"Successfully updated 'ga_users' tab with user source/medium data")
+        print(f"Successfully updated 'ga_users' tab")
         
         return True
         
@@ -194,14 +162,14 @@ def main():
     print("Authentication successful")
     
     # Fetch user data for last 30 days
-    print("Fetching user data with first user source and medium for the last 30 days...")
+    print("Fetching user data for the last 30 days...")
     user_data = fetch_user_source_medium_data(analytics, days=30)
     
     if user_data:
         print("Writing data to ga_users tab...")
         success = write_to_ga_users_tab(sheets, user_data)
         if success:
-            print("Process completed successfully! User data written to 'ga_users' tab")
+            print("Process completed successfully!")
         else:
             print("Failed to write data to spreadsheet")
     else:
