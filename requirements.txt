@@ -4,3 +4,6 @@ gspread
 selenium>=4.0.0
 webdriver_manager>=3.8.0
 openai>=1.0.0
+requests
+google-auth-oauthlib
+google-auth-httplib2
