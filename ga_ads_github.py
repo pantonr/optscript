@@ -39,16 +39,16 @@ def fetch_google_ads_data(analytics, days=30):
                     {"name": "advertiserAdCost"},
                     {"name": "advertiserAdClicks"},
                     {"name": "totalRevenue"},
-                    {"name": "keyEvents"}
+                    {"name": "conversions"}
                 ],
                 "dimensions": [
                     {"name": "date"},
-                    {"name": "googleAdsAdGroupName"}
+                    {"name": "sessionCampaignName"}
                 ],
                 "dimensionFilter": {
                     "filter": {
-                        "fieldName": "sessionSource",
-                        "stringFilter": {"matchType": "EXACT", "value": "google"}
+                        "fieldName": "sessionMedium",
+                        "stringFilter": {"matchType": "EXACT", "value": "cpc"}
                     }
                 },
                 "orderBys": [
@@ -84,18 +84,17 @@ def fetch_google_ads_data(analytics, days=30):
             ads_cost = float(row['metricValues'][0]['value'])
             ads_clicks = int(row['metricValues'][1]['value'])
             revenue = float(row['metricValues'][2]['value'])
-            key_events = int(row['metricValues'][3]['value'])
+            conversions = int(row['metricValues'][3]['value'])
             
-            # Only include rows with cost > 0
-            if ads_cost > 0:
-                processed_data.append([
-                    ads_cost,        # Ads cost
-                    formatted_date,  # Date
-                    campaign,        # Session Google Ads campaign
-                    ads_clicks,      # Ads clicks
-                    revenue,         # Purchase revenue
-                    key_events       # Key event count for purchase
-                ])
+            # Include all rows (even with 0 cost for testing)
+            processed_data.append([
+                ads_cost,        # Ads cost
+                formatted_date,  # Date
+                campaign,        # Session Google Ads campaign
+                ads_clicks,      # Ads clicks
+                revenue,         # Purchase revenue
+                conversions      # Key event count for purchase
+            ])
         
         # Sort by ads cost (descending)
         processed_data.sort(key=lambda x: -x[0])
@@ -109,6 +108,8 @@ def fetch_google_ads_data(analytics, days=30):
         
     except Exception as e:
         print(f"Error fetching Google Ads data: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def write_to_ga_ads_tab(sheets, data):
@@ -130,41 +131,6 @@ def write_to_ga_ads_tab(sheets, data):
         # Write data starting from A1
         worksheet.update(values=data, range_name="A1")
         print(f"Successfully wrote {len(data)} rows to ga_ads tab")
-        
-        # Apply formatting
-        try:
-            # Format header row
-            worksheet.format("A1:F1", {
-                "textFormat": {"bold": True},
-                "backgroundColor": {"red": 0.8, "green": 0.8, "blue": 0.9}
-            })
-            
-            # Format date column
-            data_end_row = len(data)
-            worksheet.format(f"B2:B{data_end_row}", {
-                "numberFormat": {"type": "DATE", "pattern": "yyyy-mm-dd"}
-            })
-            
-            # Format cost and revenue columns (currency)
-            worksheet.format(f"A2:A{data_end_row}", {
-                "numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"}
-            })
-            worksheet.format(f"E2:E{data_end_row}", {
-                "numberFormat": {"type": "NUMBER", "pattern": "#,##0.00"}
-            })
-            
-            # Format clicks and events columns (numbers)
-            worksheet.format(f"D2:D{data_end_row}", {
-                "numberFormat": {"type": "NUMBER", "pattern": "#,##0"}
-            })
-            worksheet.format(f"F2:F{data_end_row}", {
-                "numberFormat": {"type": "NUMBER", "pattern": "#,##0"}
-            })
-            
-        except Exception as f:
-            print(f"Note: Some formatting could not be applied: {f}")
-        
-        print(f"Successfully updated 'ga_ads' tab")
         
         return True
         
