@@ -2,9 +2,8 @@ name: GA4 Users Source Medium Data
 
 on:
   schedule:
-    # Run daily at 9:00 AM UTC (adjust timezone as needed)
     - cron: '0 9 * * *'
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:
 
 jobs:
   fetch-ga-users-data:
@@ -25,10 +24,9 @@ jobs:
         
     - name: Create service account file
       run: |
-        echo '${{ secrets.GOOGLE_CREDENTIALS }}' > service_account.json
+        cat << 'EOF' > service_account.json
+        ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}
+        EOF
         
     - name: Run GA4 Users Data Script
       run: python ga_users_source_medium_github.py
-      env:
-        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-        GA_PROPERTY_ID: ${{ secrets.GA_PROPERTY_ID }}
