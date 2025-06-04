@@ -12,6 +12,7 @@ DATA_WORKSHEET_NAME = 'data'
 INSTRUCTIONS_WORKSHEET_NAME = 'instructions'
 CSV_DATA_WORKSHEET_NAME = 'gpt_ss_data'
 OTHER_FILES_WORKSHEET_NAME = 'gpt_other_files'
+PROMPT_WORKSHEET_NAME = 'prompt'
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
@@ -89,14 +90,34 @@ def get_instructions(sheets_client):
             print(f"✓ Found instructions: {len(instruction)} characters")
             return instruction
         else:
-            print("✓ No instructions found in A1, using default")
+            print("✓ No instructions found in A1")
             return None
             
     except Exception as e:
         print(f"✗ Error getting instructions: {e}")
         return None
 
-def build_full_context(instructions, csv_data, file_links):
+def get_custom_prompt(sheets_client):
+    """Get custom prompt from the prompt tab, cell A2"""
+    try:
+        spreadsheet = sheets_client.open_by_key(SPREADSHEET_ID)
+        prompt_worksheet = spreadsheet.worksheet(PROMPT_WORKSHEET_NAME)
+        
+        # Get the prompt from cell A2
+        custom_prompt = prompt_worksheet.acell('A2').value
+        
+        if custom_prompt:
+            print(f"✓ Found custom prompt: {len(custom_prompt)} characters")
+            return custom_prompt
+        else:
+            print("✓ No custom prompt found in A2, using default")
+            return "Based on the above instructions and data, please provide your analysis and recommendations."
+            
+    except Exception as e:
+        print(f"✗ Error getting custom prompt: {e}")
+        return "Based on the above instructions and data, please provide your analysis and recommendations."
+
+def build_full_context(instructions, csv_data, file_links, custom_prompt):
     """Build the complete context for GPT including all data and files"""
     context_parts = []
     
@@ -119,8 +140,8 @@ def build_full_context(instructions, csv_data, file_links):
             context_parts.append(f"File {i}: {link}")
         context_parts.append("")
     
-    # Add the actual question
-    context_parts.append("QUESTION: How are you?")
+    # Add the custom prompt from A2
+    context_parts.append(custom_prompt)
     
     return "\n".join(context_parts)
 
@@ -139,7 +160,7 @@ def ask_gpt_with_context(full_context):
         
         # Ask GPT with full context
         response = client.chat.completions.create(
-            model="gpt-4",  # Using GPT-4 for better handling of large contexts
+            model="gpt-4-turbo-preview",  # Using GPT-4 Turbo for larger context window
             messages=[
                 {"role": "user", "content": full_context}
             ],
@@ -214,12 +235,13 @@ def main():
         instructions = get_instructions(sheets_client)
         csv_data = get_csv_data(sheets_client)
         file_links = get_other_files(sheets_client)
+        custom_prompt = get_custom_prompt(sheets_client)
         
         # Build full context for GPT
-        full_context = build_full_context(instructions, csv_data, file_links)
+        full_context = build_full_context(instructions, csv_data, file_links, custom_prompt)
         
         # Create summary for logging
-        context_summary = f"Instructions: {'Yes' if instructions else 'No'}, CSV: {'Yes' if csv_data else 'No'}, Files: {len(file_links)}"
+        context_summary = f"Instructions: {'Yes' if instructions else 'No'}, CSV: {'Yes' if csv_data else 'No'}, Files: {len(file_links)}, Prompt: {'Custom' if custom_prompt != 'Based on the above instructions and data, please provide your analysis and recommendations.' else 'Default'}"
         
         # Ask GPT with complete context
         gpt_response = ask_gpt_with_context(full_context)
