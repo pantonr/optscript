@@ -164,7 +164,7 @@ def ask_gpt_with_context(full_context):
             messages=[
                 {"role": "user", "content": full_context}
             ],
-            max_tokens=1000
+            #max_tokens=1000
         )
         
         gpt_response = response.choices[0].message.content.strip()
