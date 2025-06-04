@@ -139,7 +139,7 @@ def ask_gpt_with_context(full_context):
         
         # Ask GPT with full context
         response = client.chat.completions.create(
-            model="gpt-4",  # Using GPT-4 for better handling of large contexts
+            model="gpt-4-turbo-preview",  # Using GPT-4 for better handling of large contexts
             messages=[
                 {"role": "user", "content": full_context}
             ],
