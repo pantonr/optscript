@@ -1,0 +1,34 @@
+name: GA4 Users Source Medium Data
+
+on:
+  schedule:
+    # Run daily at 9:00 AM UTC (adjust timezone as needed)
+    - cron: '0 9 * * *'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  fetch-ga-users-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        pip install google-oauth2-tool google-api-python-client gspread
+        
+    - name: Create service account file
+      run: |
+        echo '${{ secrets.GOOGLE_CREDENTIALS }}' > service_account.json
+        
+    - name: Run GA4 Users Data Script
+      run: python ga_users_source_medium_github.py
+      env:
+        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        GA_PROPERTY_ID: ${{ secrets.GA_PROPERTY_ID }}
