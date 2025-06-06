@@ -23,7 +23,7 @@ def authenticate():
     sheets = gspread.authorize(credentials)
     return analytics, sheets
 
-def fetch_daily_metrics(analytics, days=30):
+def fetch_daily_metrics(analytics, days=45):
     """Fetch key metrics by day for the dashboard"""
     # Calculate date range
     end_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')  # Yesterday
@@ -128,7 +128,7 @@ def fetch_daily_metrics(analytics, days=30):
         overall_changes = calculate_overall_changes(metrics_data)
         
         # Format data for Google Sheets
-        date_range_info = [f"Last 30 Days ({start_date} to {end_date})"]  # Changed to 30 days
+        date_range_info = [f"Last 45 Days ({start_date} to {end_date})"]  # Changed to 30 days
         header = ["Metric"] + dates + ["Total/Avg", "Change"]
         
         # Create data rows
@@ -276,7 +276,7 @@ def write_to_thirty_day_view(sheets, data):
         try:
             worksheet = sheet.worksheet('30-Day View')
         except gspread.exceptions.WorksheetNotFound:
-            worksheet = sheet.add_worksheet(title='30-Day View', rows=50, cols=35)  # Wider for more days
+            worksheet = sheet.add_worksheet(title='45-Day View', rows=50, cols=50)  # Wider for more days
         
         # Clear existing data
         worksheet.clear()
