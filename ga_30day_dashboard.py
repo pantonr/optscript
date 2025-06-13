@@ -156,6 +156,135 @@ def fetch_daily_metrics(analytics, days=45):
         print(f"Error fetching dashboard metrics: {e}")
         return None
 
+def fetch_last_year_metrics(analytics, days=30):
+    """Fetch key metrics by day for last year's same period"""
+    # Calculate date range for last year (365 days ago)
+    end_date_ly = (datetime.now() - timedelta(days=1) - timedelta(days=365)).strftime('%Y-%m-%d')
+    start_date_ly = (datetime.now() - timedelta(days=days) - timedelta(days=365)).strftime('%Y-%m-%d')
+    
+    print(f"Fetching last year data: {start_date_ly} to {end_date_ly}")
+    
+    try:
+        # Make API request to get daily metrics for last year
+        response = analytics.properties().runReport(
+            property=f"properties/{GA_PROPERTY_ID}",
+            body={
+                "dateRanges": [{"startDate": start_date_ly, "endDate": end_date_ly}],
+                "metrics": [
+                    {"name": "sessions"},
+                    {"name": "activeUsers"}, 
+                    {"name": "screenPageViews"},
+                    {"name": "engagementRate"},
+                    {"name": "bounceRate"},
+                    {"name": "averageSessionDuration"},
+                    {"name": "conversions"},
+                    {"name": "totalRevenue"}
+                ],
+                "dimensions": [
+                    {"name": "date"}
+                ],
+                "orderBys": [
+                    {"dimension": {"dimensionName": "date"}}
+                ]
+            }
+        ).execute()
+        
+        # Process the data (same logic as current year)
+        dates = []
+        metrics_data = {
+            "Sessions": [],
+            "Users": [],
+            "Page Views": [],
+            "Engagement Rate": [],
+            "Bounce Rate": [],
+            "Avg. Session Duration": [],
+            "Conversions": [],
+            "Revenue": []
+        }
+        
+        # Get the column headers (metric names) from the response
+        metric_headers = [header.get('name') for header in response.get('metricHeaders', [])]
+        
+        # Process rows of data
+        for row in response.get('rows', []):
+            # Get date and format it nicely
+            date_value = row['dimensionValues'][0]['value']  # Format: YYYYMMDD
+            formatted_date = f"{date_value[4:6]}/{date_value[6:8]}/{date_value[0:4]}"
+            dates.append(formatted_date)
+            
+            # Extract metrics
+            for i, metric_value in enumerate(row['metricValues']):
+                metric_name = metric_headers[i]
+                value = metric_value['value']
+                
+                # Map GA4 metric names to our dashboard names and handle formatting
+                if metric_name == 'sessions':
+                    metrics_data["Sessions"].append(int(float(value)))
+                elif metric_name == 'activeUsers':
+                    metrics_data["Users"].append(int(float(value)))
+                elif metric_name == 'screenPageViews':
+                    metrics_data["Page Views"].append(int(float(value)))
+                elif metric_name == 'engagementRate':
+                    metrics_data["Engagement Rate"].append(f"{float(value)*100:.2f}%")
+                elif metric_name == 'bounceRate':
+                    metrics_data["Bounce Rate"].append(f"{float(value)*100:.2f}%")
+                elif metric_name == 'averageSessionDuration':
+                    seconds = int(float(value))
+                    minutes = seconds // 60
+                    remaining_seconds = seconds % 60
+                    metrics_data["Avg. Session Duration"].append(f"{minutes}:{remaining_seconds:02d}")
+                elif metric_name == 'conversions':
+                    metrics_data["Conversions"].append(int(float(value)))
+                elif metric_name == 'totalRevenue':
+                    metrics_data["Revenue"].append(f"${float(value):.2f}")
+        
+        # Calculate totals and averages
+        summary = {
+            "Sessions": sum(int(str(x).replace(',', '')) for x in metrics_data["Sessions"]),
+            "Users": sum(int(str(x).replace(',', '')) for x in metrics_data["Users"]),
+            "Page Views": sum(int(str(x).replace(',', '')) for x in metrics_data["Page Views"]),
+            "Engagement Rate": f"{sum(float(str(x).replace('%', '')) for x in metrics_data['Engagement Rate']) / len(metrics_data['Engagement Rate']):.2f}%",
+            "Bounce Rate": f"{sum(float(str(x).replace('%', '')) for x in metrics_data['Bounce Rate']) / len(metrics_data['Bounce Rate']):.2f}%",
+            "Avg. Session Duration": calculate_avg_duration(metrics_data["Avg. Session Duration"]),
+            "Conversions": sum(int(str(x).replace(',', '')) for x in metrics_data["Conversions"]),
+            "Revenue": f"${sum(float(str(x).replace('$', '').replace(',', '')) for x in metrics_data['Revenue']):.2f}"
+        }
+        
+        # Calculate day-over-day changes (percentage)
+        daily_changes = calculate_daily_changes(metrics_data)
+        
+        # Calculate overall change (latest day vs first day)
+        overall_changes = calculate_overall_changes(metrics_data)
+        
+        # Format data for Google Sheets
+        date_range_info = [f"Last Year Same Period ({start_date_ly} to {end_date_ly})"]
+        header = ["Metric"] + dates + ["Total/Avg", "Change"]
+        
+        # Create data rows
+        rows = []
+        for metric_name in metrics_data:
+            row = [metric_name] + metrics_data[metric_name] + [summary[metric_name]] + [overall_changes[metric_name]]
+            rows.append(row)
+        
+        # Add daily change rows
+        daily_change_rows = []
+        for metric_name in daily_changes:
+            row = [f"{metric_name} Daily Change"] + daily_changes[metric_name]
+            daily_change_rows.append(row)
+        
+        # Combine everything
+        dashboard_data = [date_range_info, [], header] + rows + [[], ["Daily Changes"]] + daily_change_rows
+        
+        # Add chart data
+        chart_data = prepare_chart_data(dates, metrics_data)
+        dashboard_data += chart_data
+        
+        return dashboard_data
+        
+    except Exception as e:
+        print(f"Error fetching last year dashboard metrics: {e}")
+        return None
+
 def calculate_avg_duration(duration_list):
     """Calculate average session duration from a list of MM:SS format strings"""
     total_seconds = 0
@@ -266,7 +395,6 @@ def prepare_chart_data(dates, metrics_data):
     
     return chart_data
 
-
 def write_to_thirty_day_view(sheets, data):
     """Write data to a tab named '30-Day View'"""
     try:
@@ -276,7 +404,7 @@ def write_to_thirty_day_view(sheets, data):
         try:
             worksheet = sheet.worksheet('30-Day View')
         except gspread.exceptions.WorksheetNotFound:
-            worksheet = sheet.add_worksheet(title='45-Day View', rows=50, cols=50)  # Wider for more days
+            worksheet = sheet.add_worksheet(title='30-Day View', rows=50, cols=50)  # Wider for more days
         
         # Clear existing data
         worksheet.clear()
@@ -376,21 +504,143 @@ def write_to_thirty_day_view(sheets, data):
         print(f"Error writing to sheet: {e}")
         return None
 
+def write_to_last_year_view(sheets, data):
+    """Write data to a tab named '30-Day Last Year'"""
+    try:
+        sheet = sheets.open_by_key(SPREADSHEET_ID)
+        
+        # Check if '30-Day Last Year' tab exists, if not create it
+        try:
+            worksheet = sheet.worksheet('30-Day Last Year')
+        except gspread.exceptions.WorksheetNotFound:
+            worksheet = sheet.add_worksheet(title='30-Day Last Year', rows=50, cols=50)
+        
+        # Clear existing data
+        worksheet.clear()
+        
+        # Write data
+        worksheet.update(values=data, range_name="A1")
+        
+        # Apply formatting (same as current year but with different colors)
+        try:
+            # Format title (using a different color scheme for last year)
+            worksheet.format("A1:AE1", {
+                "backgroundColor": {"red": 0.8, "green": 0.9, "blue": 0.8},
+                "textFormat": {"bold": True, "fontSize": 12},
+                "horizontalAlignment": "CENTER"
+            })
+            
+            # Format main header row
+            header_row = 3
+            worksheet.format(f"A{header_row}:AE{header_row}", {
+                "textFormat": {"bold": True},
+                "backgroundColor": {"red": 0.7, "green": 0.8, "blue": 0.7},
+                "horizontalAlignment": "CENTER"
+            })
+            
+            # Format metric names column
+            worksheet.format("A4:A12", {"textFormat": {"bold": True}})
+            
+            # Format the Total/Avg column
+            metrics_count = 8
+            col_count = 30 + 2
+            total_col_letter = chr(64 + col_count)
+            
+            worksheet.format(f"{total_col_letter}4:{total_col_letter}{4+metrics_count}", {
+                "backgroundColor": {"red": 0.8, "green": 0.95, "blue": 0.8},
+                "textFormat": {"bold": True}
+            })
+            
+            # Format the Change column
+            change_col_letter = chr(65 + col_count)
+            
+            worksheet.format(f"{change_col_letter}4:{change_col_letter}{4+metrics_count}", {
+                "backgroundColor": {"red": 0.8, "green": 0.8, "blue": 0.95},
+                "textFormat": {"bold": True}
+            })
+            
+            # Format daily changes section
+            daily_changes_row = 4 + metrics_count + 2
+            worksheet.format(f"A{daily_changes_row}", {
+                "backgroundColor": {"red": 0.8, "green": 0.9, "blue": 0.8},
+                "textFormat": {"bold": True}
+            })
+            
+            worksheet.format(f"A{daily_changes_row+1}:A{daily_changes_row+metrics_count}", {
+                "textFormat": {"bold": True, "italic": True}
+            })
+            
+            # Format chart data section
+            chart_data_row = daily_changes_row + metrics_count + 4
+            worksheet.format(f"A{chart_data_row}", {
+                "backgroundColor": {"red": 0.8, "green": 0.9, "blue": 0.8},
+                "textFormat": {"bold": True}
+            })
+            worksheet.format(f"A{chart_data_row+2}", {"textFormat": {"bold": True}})
+            
+            # Add conditional formatting for positive/negative changes
+            worksheet.conditional_format(f"B{4+metrics_count+1}:AE{4+metrics_count+metrics_count}", {
+                "type": "TEXT_CONTAINS",
+                "values": [["↑"]],
+                "textFormat": {"foregroundColor": {"red": 0.0, "green": 0.6, "blue": 0.0}}
+            })
+            
+            worksheet.conditional_format(f"B{4+metrics_count+1}:AE{4+metrics_count+metrics_count}", {
+                "type": "TEXT_CONTAINS",
+                "values": [["↓"]],
+                "textFormat": {"foregroundColor": {"red": 0.8, "green": 0.0, "blue": 0.0}}
+            })
+            
+            # Add borders
+            worksheet.format("A1:AE50", {
+                "borders": {
+                    "top": {"style": "SOLID"},
+                    "bottom": {"style": "SOLID"},
+                    "left": {"style": "SOLID"},
+                    "right": {"style": "SOLID"}
+                }
+            })
+            
+        except Exception as f:
+            print(f"Note: Some formatting could not be applied: {f}")
+        
+        print(f"Successfully updated '30-Day Last Year' tab with dashboard data.")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error writing to last year sheet: {e}")
+        return None
+
 def main():
     print("Starting GA4 30-day dashboard data collection process...")
     analytics, sheets = authenticate()
     print("Authentication successful")
     
     print("Fetching website metrics for the last 30 days...")
-    dashboard_data = fetch_daily_metrics(analytics, days=30)  # Changed to 30 days
+    dashboard_data = fetch_daily_metrics(analytics, days=30)
+    
+    print("Fetching website metrics for last year same period...")
+    last_year_data = fetch_last_year_metrics(analytics, days=30)
     
     if dashboard_data:
-        print("Writing data to 30-Day View tab...")
+        print("Writing current year data to 30-Day View tab...")
         success = write_to_thirty_day_view(sheets, dashboard_data)
         if success:
-            print("Process completed successfully! Dashboard data written to '30-Day View' tab")
+            print("Current year data written successfully!")
     else:
-        print("No data to process")
+        print("No current year data to process")
+    
+    if last_year_data:
+        print("Writing last year data to 30-Day Last Year tab...")
+        success_ly = write_to_last_year_view(sheets, last_year_data)
+        if success_ly:
+            print("Last year data written successfully!")
+    else:
+        print("No last year data to process")
+    
+    if dashboard_data or last_year_data:
+        print("Process completed successfully! Dashboard data written to both tabs")
 
 if __name__ == "__main__":
     main()
