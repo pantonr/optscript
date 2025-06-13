@@ -23,7 +23,7 @@ def authenticate():
     sheets = gspread.authorize(credentials)
     return analytics, sheets
 
-def fetch_daily_metrics(analytics, days=45):
+def fetch_daily_metrics(analytics, days=30):
     """Fetch key metrics by day for the dashboard"""
     # Calculate date range
     end_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')  # Yesterday
@@ -128,7 +128,7 @@ def fetch_daily_metrics(analytics, days=45):
         overall_changes = calculate_overall_changes(metrics_data)
         
         # Format data for Google Sheets
-        date_range_info = [f"Last 45 Days ({start_date} to {end_date})"]  # Changed to 30 days
+        date_range_info = [f"Last {days} Days ({start_date} to {end_date})"]
         header = ["Metric"] + dates + ["Total/Avg", "Change"]
         
         # Create data rows
@@ -285,6 +285,154 @@ def fetch_last_year_metrics(analytics, days=30):
         print(f"Error fetching last year dashboard metrics: {e}")
         return None
 
+
+def fetch_channel_metrics(analytics, days=30):
+    """Fetch channel breakdown metrics for the dashboard"""
+    # Calculate date range
+    end_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')  # Yesterday
+    start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+    
+    try:
+        # Make API request to get channel metrics
+        response = analytics.properties().runReport(
+            property=f"properties/{GA_PROPERTY_ID}",
+            body={
+                "dateRanges": [{"startDate": start_date, "endDate": end_date}],
+                "metrics": [
+                    {"name": "sessions"},
+                    {"name": "activeUsers"}, 
+                    {"name": "screenPageViews"},
+                    {"name": "conversions"},
+                    {"name": "totalRevenue"}
+                ],
+                "dimensions": [
+                    {"name": "sessionDefaultChannelGrouping"}
+                ],
+                "orderBys": [
+                    {"metric": {"metricName": "sessions"}, "desc": True}
+                ]
+            }
+        ).execute()
+        
+        # Process the channel data
+        channel_data = {}
+        total_sessions = 0
+        total_revenue = 0
+        
+        # Get the column headers from the response
+        metric_headers = [header.get('name') for header in response.get('metricHeaders', [])]
+        
+        # Process rows of data
+        for row in response.get('rows', []):
+            channel = row['dimensionValues'][0]['value']
+            
+            # Initialize channel data
+            channel_data[channel] = {}
+            
+            # Extract metrics
+            for i, metric_value in enumerate(row['metricValues']):
+                metric_name = metric_headers[i]
+                value = metric_value['value']
+                
+                if metric_name == 'sessions':
+                    channel_data[channel]['Sessions'] = int(float(value))
+                    total_sessions += int(float(value))
+                elif metric_name == 'activeUsers':
+                    channel_data[channel]['Users'] = int(float(value))
+                elif metric_name == 'screenPageViews':
+                    channel_data[channel]['Page Views'] = int(float(value))
+                elif metric_name == 'conversions':
+                    channel_data[channel]['Conversions'] = int(float(value))
+                elif metric_name == 'totalRevenue':
+                    revenue_val = float(value)
+                    channel_data[channel]['Revenue'] = f"${revenue_val:.2f}"
+                    total_revenue += revenue_val
+        
+        # Calculate percentages
+        for channel in channel_data:
+            sessions = channel_data[channel]['Sessions']
+            revenue_val = float(channel_data[channel]['Revenue'].replace('$', '').replace(',', ''))
+            
+            channel_data[channel]['% Sessions'] = f"{(sessions/total_sessions*100):.1f}%" if total_sessions > 0 else "0.0%"
+            channel_data[channel]['% Revenue'] = f"{(revenue_val/total_revenue*100):.1f}%" if total_revenue > 0 else "0.0%"
+        
+        return channel_data
+        
+    except Exception as e:
+        print(f"Error fetching channel metrics: {e}")
+        return None
+
+def fetch_last_year_channel_metrics(analytics, days=30):
+    """Fetch channel breakdown metrics for last year's same period"""
+    # Calculate date range for last year
+    end_date_ly = (datetime.now() - timedelta(days=1) - timedelta(days=365)).strftime('%Y-%m-%d')
+    start_date_ly = (datetime.now() - timedelta(days=days) - timedelta(days=365)).strftime('%Y-%m-%d')
+    
+    try:
+        # Make API request to get channel metrics for last year
+        response = analytics.properties().runReport(
+            property=f"properties/{GA_PROPERTY_ID}",
+            body={
+                "dateRanges": [{"startDate": start_date_ly, "endDate": end_date_ly}],
+                "metrics": [
+                    {"name": "sessions"},
+                    {"name": "activeUsers"}, 
+                    {"name": "screenPageViews"},
+                    {"name": "conversions"},
+                    {"name": "totalRevenue"}
+                ],
+                "dimensions": [
+                    {"name": "sessionDefaultChannelGrouping"}
+                ],
+                "orderBys": [
+                    {"metric": {"metricName": "sessions"}, "desc": True}
+                ]
+            }
+        ).execute()
+        
+        # Process the channel data (same logic as current year)
+        channel_data = {}
+        total_sessions = 0
+        total_revenue = 0
+        
+        metric_headers = [header.get('name') for header in response.get('metricHeaders', [])]
+        
+        for row in response.get('rows', []):
+            channel = row['dimensionValues'][0]['value']
+            channel_data[channel] = {}
+            
+            for i, metric_value in enumerate(row['metricValues']):
+                metric_name = metric_headers[i]
+                value = metric_value['value']
+                
+                if metric_name == 'sessions':
+                    channel_data[channel]['Sessions'] = int(float(value))
+                    total_sessions += int(float(value))
+                elif metric_name == 'activeUsers':
+                    channel_data[channel]['Users'] = int(float(value))
+                elif metric_name == 'screenPageViews':
+                    channel_data[channel]['Page Views'] = int(float(value))
+                elif metric_name == 'conversions':
+                    channel_data[channel]['Conversions'] = int(float(value))
+                elif metric_name == 'totalRevenue':
+                    revenue_val = float(value)
+                    channel_data[channel]['Revenue'] = f"${revenue_val:.2f}"
+                    total_revenue += revenue_val
+        
+        # Calculate percentages
+        for channel in channel_data:
+            sessions = channel_data[channel]['Sessions']
+            revenue_val = float(channel_data[channel]['Revenue'].replace('$', '').replace(',', ''))
+            
+            channel_data[channel]['% Sessions'] = f"{(sessions/total_sessions*100):.1f}%" if total_sessions > 0 else "0.0%"
+            channel_data[channel]['% Revenue'] = f"{(revenue_val/total_revenue*100):.1f}%" if total_revenue > 0 else "0.0%"
+        
+        return channel_data
+        
+    except Exception as e:
+        print(f"Error fetching last year channel metrics: {e}")
+        return None
+
 def calculate_avg_duration(duration_list):
     """Calculate average session duration from a list of MM:SS format strings"""
     total_seconds = 0
@@ -395,6 +543,38 @@ def prepare_chart_data(dates, metrics_data):
     
     return chart_data
 
+def prepare_channel_data(channel_data):
+    """Format channel data for Google Sheets"""
+    if not channel_data:
+        return [[], ["CHANNEL BREAKDOWN"], []]
+    
+    # Create header row
+    channels = list(channel_data.keys())
+    header = ["Metric"] + channels
+    
+    # Create metric rows
+    metrics = ["Sessions", "Users", "Page Views", "Conversions", "Revenue", "% Sessions", "% Revenue"]
+    rows = []
+    
+    for metric in metrics:
+        row = [metric]
+        for channel in channels:
+            if metric in channel_data[channel]:
+                row.append(channel_data[channel][metric])
+            else:
+                row.append(0)
+        rows.append(row)
+    
+    # Return formatted data
+    return [
+        [],
+        [],
+        ["CHANNEL BREAKDOWN"],
+        [],
+        header
+    ] + rows
+
+
 def write_to_thirty_day_view(sheets, data):
     """Write data to a tab named '30-Day View'"""
     try:
@@ -404,7 +584,7 @@ def write_to_thirty_day_view(sheets, data):
         try:
             worksheet = sheet.worksheet('30-Day View')
         except gspread.exceptions.WorksheetNotFound:
-            worksheet = sheet.add_worksheet(title='30-Day View', rows=50, cols=50)  # Wider for more days
+            worksheet = sheet.add_worksheet(title='30-Day View', rows=100, cols=60)
         
         # Clear existing data
         worksheet.clear()
@@ -415,7 +595,7 @@ def write_to_thirty_day_view(sheets, data):
         # Apply formatting
         try:
             # Format title
-            worksheet.format("A1:AE1", {  # Wider range for 30 days
+            worksheet.format("A1:AZ1", {
                 "backgroundColor": {"red": 0.9, "green": 0.9, "blue": 0.9},
                 "textFormat": {"bold": True, "fontSize": 12},
                 "horizontalAlignment": "CENTER"
@@ -423,27 +603,27 @@ def write_to_thirty_day_view(sheets, data):
             
             # Format main header row
             header_row = 3
-            worksheet.format(f"A{header_row}:AE{header_row}", {  # Wider range for 30 days
+            worksheet.format(f"A{header_row}:AZ{header_row}", {
                 "textFormat": {"bold": True},
                 "backgroundColor": {"red": 0.8, "green": 0.8, "blue": 0.9},
                 "horizontalAlignment": "CENTER"
             })
             
             # Format metric names column
-            worksheet.format("A4:A12", {"textFormat": {"bold": True}})
+            worksheet.format("A4:A50", {"textFormat": {"bold": True}})
             
-            # Format the Total/Avg column - Need to adapt for the right column with 30 days
-            metrics_count = 8  # Number of main metrics
-            col_count = 30 + 2  # 30 days + Metric name + Total
-            total_col_letter = chr(64 + col_count)  # Convert to letter (e.g., 32 -> AF)
+            # Format the Total/Avg column
+            metrics_count = 8
+            col_count = 30 + 2
+            total_col_letter = chr(64 + col_count) if col_count <= 26 else f"A{chr(64 + col_count - 26)}"
             
             worksheet.format(f"{total_col_letter}4:{total_col_letter}{4+metrics_count}", {
                 "backgroundColor": {"red": 0.95, "green": 0.95, "blue": 0.8},
                 "textFormat": {"bold": True}
             })
             
-            # Format the Change column - Need to adapt for the right column with 30 days
-            change_col_letter = chr(65 + col_count)  # Convert to letter (e.g., 33 -> AG)
+            # Format the Change column
+            change_col_letter = chr(65 + col_count) if col_count < 25 else f"A{chr(65 + col_count - 26)}"
             
             worksheet.format(f"{change_col_letter}4:{change_col_letter}{4+metrics_count}", {
                 "backgroundColor": {"red": 0.95, "green": 0.8, "blue": 0.8},
@@ -469,22 +649,21 @@ def write_to_thirty_day_view(sheets, data):
             })
             worksheet.format(f"A{chart_data_row+2}", {"textFormat": {"bold": True}})
             
-            # Add conditional formatting for positive/negative changes for daily changes
-            # When we have 30 days, this range needs to be wider
-            worksheet.conditional_format(f"B{4+metrics_count+1}:AE{4+metrics_count+metrics_count}", {
+            # Add conditional formatting for positive/negative changes
+            worksheet.conditional_format(f"B{4+metrics_count+1}:AZ{4+metrics_count+metrics_count}", {
                 "type": "TEXT_CONTAINS",
                 "values": [["↑"]],
                 "textFormat": {"foregroundColor": {"red": 0.0, "green": 0.6, "blue": 0.0}}
             })
             
-            worksheet.conditional_format(f"B{4+metrics_count+1}:AE{4+metrics_count+metrics_count}", {
+            worksheet.conditional_format(f"B{4+metrics_count+1}:AZ{4+metrics_count+metrics_count}", {
                 "type": "TEXT_CONTAINS",
                 "values": [["↓"]],
                 "textFormat": {"foregroundColor": {"red": 0.8, "green": 0.0, "blue": 0.0}}
             })
             
-            # Add borders with wider range for 30 days
-            worksheet.format("A1:AE50", {
+            # Add borders
+            worksheet.format("A1:AZ100", {
                 "borders": {
                     "top": {"style": "SOLID"},
                     "bottom": {"style": "SOLID"},
@@ -513,7 +692,7 @@ def write_to_last_year_view(sheets, data):
         try:
             worksheet = sheet.worksheet('30-Day Last Year')
         except gspread.exceptions.WorksheetNotFound:
-            worksheet = sheet.add_worksheet(title='30-Day Last Year', rows=50, cols=50)
+            worksheet = sheet.add_worksheet(title='30-Day Last Year', rows=100, cols=60)
         
         # Clear existing data
         worksheet.clear()
@@ -524,7 +703,7 @@ def write_to_last_year_view(sheets, data):
         # Apply formatting (same as current year but with different colors)
         try:
             # Format title (using a different color scheme for last year)
-            worksheet.format("A1:AE1", {
+            worksheet.format("A1:AZ1", {
                 "backgroundColor": {"red": 0.8, "green": 0.9, "blue": 0.8},
                 "textFormat": {"bold": True, "fontSize": 12},
                 "horizontalAlignment": "CENTER"
@@ -532,19 +711,19 @@ def write_to_last_year_view(sheets, data):
             
             # Format main header row
             header_row = 3
-            worksheet.format(f"A{header_row}:AE{header_row}", {
+            worksheet.format(f"A{header_row}:AZ{header_row}", {
                 "textFormat": {"bold": True},
                 "backgroundColor": {"red": 0.7, "green": 0.8, "blue": 0.7},
                 "horizontalAlignment": "CENTER"
             })
             
             # Format metric names column
-            worksheet.format("A4:A12", {"textFormat": {"bold": True}})
+            worksheet.format("A4:A50", {"textFormat": {"bold": True}})
             
             # Format the Total/Avg column
             metrics_count = 8
             col_count = 30 + 2
-            total_col_letter = chr(64 + col_count)
+            total_col_letter = chr(64 + col_count) if col_count <= 26 else f"A{chr(64 + col_count - 26)}"
             
             worksheet.format(f"{total_col_letter}4:{total_col_letter}{4+metrics_count}", {
                 "backgroundColor": {"red": 0.8, "green": 0.95, "blue": 0.8},
@@ -552,7 +731,7 @@ def write_to_last_year_view(sheets, data):
             })
             
             # Format the Change column
-            change_col_letter = chr(65 + col_count)
+            change_col_letter = chr(65 + col_count) if col_count < 25 else f"A{chr(65 + col_count - 26)}"
             
             worksheet.format(f"{change_col_letter}4:{change_col_letter}{4+metrics_count}", {
                 "backgroundColor": {"red": 0.8, "green": 0.8, "blue": 0.95},
@@ -579,20 +758,20 @@ def write_to_last_year_view(sheets, data):
             worksheet.format(f"A{chart_data_row+2}", {"textFormat": {"bold": True}})
             
             # Add conditional formatting for positive/negative changes
-            worksheet.conditional_format(f"B{4+metrics_count+1}:AE{4+metrics_count+metrics_count}", {
+            worksheet.conditional_format(f"B{4+metrics_count+1}:AZ{4+metrics_count+metrics_count}", {
                 "type": "TEXT_CONTAINS",
                 "values": [["↑"]],
                 "textFormat": {"foregroundColor": {"red": 0.0, "green": 0.6, "blue": 0.0}}
             })
             
-            worksheet.conditional_format(f"B{4+metrics_count+1}:AE{4+metrics_count+metrics_count}", {
+            worksheet.conditional_format(f"B{4+metrics_count+1}:AZ{4+metrics_count+metrics_count}", {
                 "type": "TEXT_CONTAINS",
                 "values": [["↓"]],
                 "textFormat": {"foregroundColor": {"red": 0.8, "green": 0.0, "blue": 0.0}}
             })
             
             # Add borders
-            worksheet.format("A1:AE50", {
+            worksheet.format("A1:AZ100", {
                 "borders": {
                     "top": {"style": "SOLID"},
                     "bottom": {"style": "SOLID"},
@@ -620,8 +799,25 @@ def main():
     print("Fetching website metrics for the last 30 days...")
     dashboard_data = fetch_daily_metrics(analytics, days=30)
     
+    print("Fetching channel metrics for the last 30 days...")
+    channel_data = fetch_channel_metrics(analytics, days=30)
+    
     print("Fetching website metrics for last year same period...")
     last_year_data = fetch_last_year_metrics(analytics, days=30)
+    
+    print("Fetching channel metrics for last year same period...")
+    last_year_channel_data = fetch_last_year_channel_metrics(analytics, days=30)
+    
+    # Add channel data to dashboard data
+    if dashboard_data and channel_data:
+        channel_formatted = prepare_channel_data(channel_data)
+        dashboard_data += channel_formatted
+        print("Channel data added to current year dashboard")
+        
+    if last_year_data and last_year_channel_data:
+        channel_formatted_ly = prepare_channel_data(last_year_channel_data)
+        last_year_data += channel_formatted_ly
+        print("Channel data added to last year dashboard")
     
     if dashboard_data:
         print("Writing current year data to 30-Day View tab...")
@@ -640,7 +836,7 @@ def main():
         print("No last year data to process")
     
     if dashboard_data or last_year_data:
-        print("Process completed successfully! Dashboard data written to both tabs")
+        print("Process completed successfully! Dashboard data with channel breakdown written to both tabs")
 
 if __name__ == "__main__":
     main()
