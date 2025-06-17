@@ -1,0 +1,43 @@
+name: Import Leads from Google Sheet
+
+on:
+  repository_dispatch:
+    types: [new-lead-added]
+  workflow_dispatch:
+    inputs:
+      trigger_source:
+        description: 'Source that triggered this workflow'
+        required: false
+        default: 'manual'
+  schedule:
+    # Run every 15 minutes to check for new leads
+    - cron: '*/15 * * * *'
+
+jobs:
+  import-leads:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Create service account file
+      run: |
+        echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT }}' > service_account.json
+    
+    - name: Import leads to Odoo Test Environment
+      env:
+        # Use your existing secrets for the test environment
+        ODOO_URL: "https://qa-odoo.apps.optimacompanies.com/"
+        ODOO_DB: "prod-restore-20250409"
+        ODOO_LOGIN: ${{ secrets.ODOO_LOGIN }}
+        ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+      run: |
+        python lead_import_from_sheet.py
