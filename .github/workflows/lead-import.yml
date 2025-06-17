@@ -1,17 +1,10 @@
 name: Import Leads from Google Sheet
 
 on:
-  repository_dispatch:
-    types: [new-lead-added]
-  workflow_dispatch:
-    inputs:
-      trigger_source:
-        description: 'Source that triggered this workflow'
-        required: false
-        default: 'manual'
   schedule:
-    # Run every 15 minutes to check for new leads
-    - cron: '*/15 * * * *'
+    # Run every 2 minutes to check for new leads
+    - cron: '*/2 * * * *'
+  workflow_dispatch:
 
 jobs:
   import-leads:
@@ -34,7 +27,6 @@ jobs:
     
     - name: Import leads to Odoo Test Environment
       env:
-        # Use your existing secrets for the test environment
         ODOO_URL: "https://qa-odoo.apps.optimacompanies.com/"
         ODOO_DB: "prod-restore-20250409"
         ODOO_LOGIN: ${{ secrets.ODOO_LOGIN }}
