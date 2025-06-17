@@ -5,6 +5,8 @@ on:
     # Run every 2 minutes to check for new leads
     - cron: '*/2 * * * *'
   workflow_dispatch:
+  repository_dispatch:
+    types: [new_lead_added]
 
 jobs:
   import-leads:
