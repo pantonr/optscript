@@ -237,33 +237,32 @@ def main():
         print("No new leads to process")
         return
     
+    # Process only the LATEST pending lead (most recent)
+    latest_lead = max(pending_leads, key=lambda x: x['timestamp'])
+    print(f"Processing latest lead: {latest_lead['name']} (added: {latest_lead['timestamp']})")
+    
     # Authenticate with Odoo
     session_id = authenticate_odoo(odoo_url, db, login, password)
     
-    processed_count = 0
+    print(f"\n--- Processing: {latest_lead['name']} ---")
     
-    for pending_lead in pending_leads:
-        print(f"\n--- Processing: {pending_lead['name']} ---")
-        
-        # Get full lead data from form responses
-        lead_data = get_lead_from_form_responses(gc, pending_lead['name'], pending_lead['email'])
-        
-        if not lead_data:
-            print(f"❌ Could not find full data for {pending_lead['name']}")
-            mark_lead_processed(gc, pending_lead['row'], 'ERROR')
-            continue
-        
-        # Create lead in Odoo
-        lead_id = create_lead_in_odoo(odoo_url, session_id, lead_data)
-        
-        if lead_id:
-            mark_lead_processed(gc, pending_lead['row'], 'PROCESSED')
-            processed_count += 1
-        else:
-            mark_lead_processed(gc, pending_lead['row'], 'FAILED')
+    # Get full lead data from form responses
+    lead_data = get_lead_from_form_responses(gc, latest_lead['name'], latest_lead['email'])
     
-    print(f"\n--- SUMMARY ---")
-    print(f"Processed: {processed_count}/{len(pending_leads)} leads")
+    if not lead_data:
+        print(f"❌ Could not find full data for {latest_lead['name']}")
+        mark_lead_processed(gc, latest_lead['row'], 'ERROR')
+        return
+    
+    # Create lead in Odoo
+    lead_id = create_lead_in_odoo(odoo_url, session_id, lead_data)
+    
+    if lead_id:
+        mark_lead_processed(gc, latest_lead['row'], 'PROCESSED')
+        print(f"✅ Successfully processed latest lead: {latest_lead['name']}")
+    else:
+        mark_lead_processed(gc, latest_lead['row'], 'FAILED')
+        print(f"❌ Failed to process latest lead: {latest_lead['name']}")
 
 if __name__ == '__main__':
     main()
