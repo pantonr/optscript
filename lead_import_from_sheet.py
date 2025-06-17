@@ -102,8 +102,10 @@ def mark_lead_processed(gc, row_number, status='PROCESSED'):
     except Exception as e:
         print(f"Error marking lead as processed: {e}")
 
+
+
 def get_lead_from_form_responses(gc, lead_name, lead_email):
-    """Find full lead data from form responses"""
+    """Find full lead data from form responses - get the LATEST matching row"""
     try:
         sheet = gc.open_by_key(SPREADSHEET_ID)
         worksheet = sheet.worksheet(WORKSHEET_NAME)
@@ -111,8 +113,11 @@ def get_lead_from_form_responses(gc, lead_name, lead_email):
         all_values = worksheet.get_all_values()
         headers = all_values[0]
         
-        # Look for matching lead
-        for row in all_values[1:]:
+        # Look for matching lead - search from BOTTOM UP to get latest
+        matching_lead = None
+        
+        # Reverse the rows to search from bottom up (most recent first)
+        for row in reversed(all_values[1:]):
             if len(row) >= len(headers):
                 # Check if this matches our lead
                 row_first_name = row[1] if len(row) > 1 else ''
@@ -121,13 +126,17 @@ def get_lead_from_form_responses(gc, lead_name, lead_email):
                 
                 full_name = f"{row_first_name} {row_last_name}".strip()
                 
+                print(f"Checking row: {full_name} ({row_email}) vs looking for: {lead_name} ({lead_email})")
+                
                 if (full_name == lead_name or row_email == lead_email) and row_email:
+                    print(f"✅ Found matching lead: {full_name} with email {row_email}")
+                    
                     # Map to our expected field names
                     form_data = {}
                     for i, header in enumerate(headers):
                         form_data[header] = row[i] if i < len(row) else ''
                     
-                    return {
+                    matching_lead = {
                         'submission_date': form_data.get('Submission Date', ''),
                         'first_name': form_data.get('Name - First Name', ''),
                         'last_name': form_data.get('Name - Last Name', ''),
@@ -141,12 +150,20 @@ def get_lead_from_form_responses(gc, lead_name, lead_email):
                         'description': form_data.get('Description', ''),
                         'submission_id': form_data.get('Submission ID', '')
                     }
+                    break  # Stop at first match (which is the latest since we're going backwards)
         
-        return None
+        if matching_lead:
+            print(f"Returning lead data for: {matching_lead['first_name']} {matching_lead['last_name']}")
+        else:
+            print(f"No matching lead found for: {lead_name} ({lead_email})")
+            
+        return matching_lead
         
     except Exception as e:
         print(f"Error getting lead from form responses: {e}")
         return None
+
+
 
 def create_lead_in_odoo(url, session_id, lead_data):
     """Create lead in Odoo"""
