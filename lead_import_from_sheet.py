@@ -223,6 +223,8 @@ Submission Date: {lead_data.get('submission_date', 'Not specified')}"""
         print(f"❌ Failed to create lead. Response: {response.json()}")
         return None
 
+
+
 def main():
     print("🚀 Checking for new leads from processing queue...")
     
@@ -237,9 +239,9 @@ def main():
         print("No new leads to process")
         return
     
-    # Process only the LATEST pending lead (most recent)
-    latest_lead = max(pending_leads, key=lambda x: x['timestamp'])
-    print(f"Processing latest lead: {latest_lead['name']} (added: {latest_lead['timestamp']})")
+    # Process only the LAST pending lead in the queue (highest row number = most recent)
+    latest_lead = max(pending_leads, key=lambda x: x['row'])
+    print(f"Processing latest lead: {latest_lead['name']} (row: {latest_lead['row']})")
     
     # Authenticate with Odoo
     session_id = authenticate_odoo(odoo_url, db, login, password)
@@ -266,3 +268,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
