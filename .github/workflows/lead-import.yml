@@ -29,8 +29,8 @@ jobs:
     
     - name: Import leads to Odoo Test Environment
       env:
-        ODOO_URL: "https://qa-odoo.apps.optimacompanies.com/"
-        ODOO_DB: "prod-restore-20250409"
+        ODOO_URL: "https://odoo.optimacompanies.com/"
+        ODOO_DB: "master"
         ODOO_LOGIN: ${{ secrets.ODOO_LOGIN }}
         ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
       run: |
