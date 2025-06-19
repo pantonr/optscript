@@ -13,8 +13,8 @@ WORKSHEET_NAME = 'Form responses'
 PROCESSING_QUEUE_NAME = 'processing_queue'
 
 # Odoo TEST credentials
-odoo_url = os.environ.get('ODOO_URL', 'https://qa-odoo.apps.optimacompanies.com/')
-db = os.environ.get('ODOO_DB', 'prod-restore-20250409')
+odoo_url = os.environ.get('ODOO_URL', 'https://odoo.optimacompanies.com/')
+db = os.environ.get('ODOO_DB', 'master')
 login = os.environ.get('ODOO_LOGIN')
 password = os.environ.get('ODOO_PASSWORD')
 
