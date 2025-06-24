@@ -70,6 +70,8 @@ def get_opportunities(session_id):
                     "stage_id",
                     "source_id",
                     "campaign_id",
+                    "pricelist_id",    # Added pricelist field
+                    "website_id",      # Added website field
                     "expected_revenue",
                     "user_id"
                 ],
@@ -97,21 +99,23 @@ def write_to_odoo_sales_tab(sheets, opportunities):
         try:
             worksheet = sheet.worksheet('odoo_sales')
         except:
-            worksheet = sheet.add_worksheet(title='odoo_sales', rows=1000, cols=10)
+            worksheet = sheet.add_worksheet(title='odoo_sales', rows=1000, cols=12)  # Updated column count
             print("Created new 'odoo_sales' worksheet")
         
         # Clear existing data
         worksheet.clear()
         print("Cleared existing data from odoo_sales tab")
         
-        # Prepare headers
+        # Prepare headers - added new columns
         headers = [
             "Date",
             "Opp ID", 
             "Name",
             "Stage",
             "Source",
-            "Campaign", 
+            "Campaign",
+            "Pricelist",   # Added pricelist column
+            "Website",     # Added website column
             "Amount",
             "User"
         ]
@@ -126,6 +130,8 @@ def write_to_odoo_sales_tab(sheets, opportunities):
                 opp.get('stage_id', ['', ''])[1] if opp.get('stage_id') else '',
                 opp.get('source_id', ['', ''])[1] if opp.get('source_id') else '',
                 opp.get('campaign_id', ['', ''])[1] if opp.get('campaign_id') else '',
+                opp.get('pricelist_id', ['', ''])[1] if opp.get('pricelist_id') else '',  # Added pricelist data
+                opp.get('website_id', ['', ''])[1] if opp.get('website_id') else '',      # Added website data
                 opp.get('expected_revenue', 0),
                 opp.get('user_id', ['', ''])[1] if opp.get('user_id') else ''
             ])
