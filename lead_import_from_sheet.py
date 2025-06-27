@@ -1,10 +1,11 @@
 import requests
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
 import os
+import xmlrpc.client
 
 # Google Sheets Configuration
 SERVICE_ACCOUNT_FILE = 'service_account.json'
@@ -17,6 +18,9 @@ odoo_url = os.environ.get('ODOO_URL', 'https://odoo.optimacompanies.com/')
 db = os.environ.get('ODOO_DB', 'master')
 login = os.environ.get('ODOO_LOGIN')
 password = os.environ.get('ODOO_PASSWORD')
+
+# XML-RPC URL for activity creation
+xmlrpc_url = odoo_url.rstrip('/')
 
 # Salesperson assignment
 MIKE_GOODWIN_USER_ID = 28
@@ -86,6 +90,74 @@ def authenticate_odoo(url, db, login, password):
     else:
         print(f"❌ Failed to authenticate with Odoo TEST environment. Status Code: {response.status_code}")
         raise ValueError("Odoo authentication failed")
+
+def authenticate_xmlrpc():
+    """Authenticate with Odoo XML-RPC"""
+    try:
+        common = xmlrpc.client.ServerProxy('{}/xmlrpc/2/common'.format(xmlrpc_url))
+        uid = common.authenticate(db, login, password, {})
+        if uid:
+            print(f"✅ Successfully authenticated XML-RPC. User ID: {uid}")
+            return uid
+        else:
+            print("❌ XML-RPC authentication failed")
+            return None
+    except Exception as e:
+        print(f"❌ XML-RPC authentication error: {e}")
+        return None
+
+def create_activity_for_lead(lead_id, user_id):
+    """Create activity for the lead using XML-RPC"""
+    try:
+        # Authenticate XML-RPC
+        uid = authenticate_xmlrpc()
+        if not uid:
+            return False
+        
+        # XML-RPC Object URL for calling methods
+        models = xmlrpc.client.ServerProxy('{}/xmlrpc/2/object'.format(xmlrpc_url))
+        
+        # Fetch the activity type with ID 69
+        try:
+            activity_type = models.execute_kw(
+                db, uid, password, 'mail.activity.type', 'read', [[69]], 
+                {'fields': ['name', 'sequence', 'delay_count', 'delay_unit', 
+                            'icon', 'decoration_type', 'default_user_id', 'default_note']}
+            )[0]
+            print(f"✅ Activity type fetched: {activity_type}")
+        except Exception as e:
+            print(f"❌ Error fetching activity type: {e}")
+            return False
+
+        # Create the activity
+        if activity_type:
+            activity_data = {
+                'res_id': lead_id,
+                'res_model_id': 707,  # crm.lead model ID
+                'res_model': 'crm.lead',
+                'activity_type_id': activity_type['id'],
+                'summary': activity_type['name'],
+                'user_id': user_id,
+                'note': activity_type['default_note'],
+                'date_deadline': (datetime.now() + 
+                                  timedelta(days=activity_type['delay_count'], 
+                                           weeks=1 if activity_type['delay_unit'] == 'weeks' else 0)
+                                 ).strftime('%Y-%m-%d')
+            }
+
+            try:
+                models.execute_kw(db, uid, password, 'mail.activity', 'create', [activity_data])
+                print(f"✅ Activity created successfully for lead {lead_id}!")
+                return True
+            except Exception as e:
+                print(f"❌ Error creating activity: {e}")
+                return False
+        
+        return False
+        
+    except Exception as e:
+        print(f"❌ Error in create_activity_for_lead: {e}")
+        return False
 
 def get_or_create_campaign_id(url, session_id, campaign_name):
     """Find or create a campaign by name in Odoo"""
@@ -402,6 +474,15 @@ Device: {lead_data.get('campaign_device', 'Not specified')}"""
     if response.status_code == 200 and response.json().get("result"):
         lead_id = response.json()["result"]
         print(f"✅ Created lead '{lead_name}' with ID: {lead_id} assigned to Mike Goodwin")
+        
+        # Create activity for the lead
+        print(f"📅 Creating activity for lead {lead_id}...")
+        activity_created = create_activity_for_lead(lead_id, MIKE_GOODWIN_USER_ID)
+        if activity_created:
+            print(f"✅ Activity created successfully for lead {lead_id}")
+        else:
+            print(f"❌ Failed to create activity for lead {lead_id}")
+        
         return lead_id
     else:
         print(f"❌ Failed to create lead. Response: {response.json()}")
@@ -443,7 +524,7 @@ def main():
     
     if lead_id:
         mark_lead_processed(gc, latest_lead['row'], 'PROCESSED')
-        print(f"✅ Successfully processed latest lead: {latest_lead['name']} with campaign data")
+        print(f"✅ Successfully processed latest lead: {latest_lead['name']} with campaign data and activity")
     else:
         mark_lead_processed(gc, latest_lead['row'], 'FAILED')
         print(f"❌ Failed to process latest lead: {latest_lead['name']}")
