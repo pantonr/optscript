@@ -69,7 +69,7 @@ def get_opportunities(session_id):
                     "name",
                     "stage_id",
                     "source_id",
-                    "medium_id",       # Added medium field
+                    #"medium_id",     
                     "campaign_id",
                     "pricelist_id",    # Added pricelist field
                     "website_id",      # Added website field
@@ -114,7 +114,7 @@ def write_to_odoo_sales_tab(sheets, opportunities):
             "Name",
             "Stage",
             "Source",
-            "Medium",       # Added medium column
+            #"Medium", 
             "Campaign",
             "Pricelist",    # Added pricelist column
             "Website",      # Added website column
@@ -131,7 +131,7 @@ def write_to_odoo_sales_tab(sheets, opportunities):
                 opp.get('name', ''),
                 opp.get('stage_id', ['', ''])[1] if opp.get('stage_id') else '',
                 opp.get('source_id', ['', ''])[1] if opp.get('source_id') else '',
-                opp.get('medium_id', ['', ''])[1] if opp.get('medium_id') else '',      # Added medium data
+                #opp.get('medium_id', ['', ''])[1] if opp.get('medium_id') else '',      
                 opp.get('campaign_id', ['', ''])[1] if opp.get('campaign_id') else '',
                 opp.get('pricelist_id', ['', ''])[1] if opp.get('pricelist_id') else '',  # Added pricelist data
                 opp.get('website_id', ['', ''])[1] if opp.get('website_id') else '',      # Added website data
