@@ -17,7 +17,6 @@ SCOPES = [
 
 def authenticate_odoo():
     """Authenticate with Odoo"""
-    # Get credentials from environment variables (GitHub secrets)
     login = os.environ.get('ODOO_USERNAME')
     password = os.environ.get('ODOO_PASSWORD')
     
@@ -46,7 +45,6 @@ def get_opportunities(session_id):
         "Cookie": f"session_id={session_id}"
     }
 
-    # Last 30 days
     thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
     today = datetime.now().strftime('%Y-%m-%d')
 
@@ -70,8 +68,6 @@ def get_opportunities(session_id):
                     "stage_id",
                     "source_id",
                     "campaign_id",
-                    "pricelist_id",    # Added pricelist field
-                    "website_id",      # Added website field
                     "expected_revenue",
                     "user_id"
                 ],
@@ -95,18 +91,15 @@ def write_to_odoo_sales_tab(sheets, opportunities):
     try:
         sheet = sheets.open_by_key(SPREADSHEET_ID)
         
-        # Check if 'odoo_sales' tab exists, if not create it
         try:
             worksheet = sheet.worksheet('odoo_sales')
         except:
-            worksheet = sheet.add_worksheet(title='odoo_sales', rows=1000, cols=12)  # Updated column count
+            worksheet = sheet.add_worksheet(title='odoo_sales', rows=1000, cols=8)
             print("Created new 'odoo_sales' worksheet")
         
-        # Clear existing data
         worksheet.clear()
         print("Cleared existing data from odoo_sales tab")
         
-        # Prepare headers - added new columns
         headers = [
             "Date",
             "Opp ID", 
@@ -114,13 +107,10 @@ def write_to_odoo_sales_tab(sheets, opportunities):
             "Stage",
             "Source",
             "Campaign",
-            "Pricelist",   # Added pricelist column
-            "Website",     # Added website column
             "Amount",
             "User"
         ]
         
-        # Prepare data rows
         rows = [headers]
         for opp in opportunities:
             rows.append([
@@ -130,13 +120,10 @@ def write_to_odoo_sales_tab(sheets, opportunities):
                 opp.get('stage_id', ['', ''])[1] if opp.get('stage_id') else '',
                 opp.get('source_id', ['', ''])[1] if opp.get('source_id') else '',
                 opp.get('campaign_id', ['', ''])[1] if opp.get('campaign_id') else '',
-                opp.get('pricelist_id', ['', ''])[1] if opp.get('campaign_id') else '',
-                opp.get('website_id', ['', ''])[1] if opp.get('campaign_id') else '',
                 opp.get('expected_revenue', 0),
                 opp.get('user_id', ['', ''])[1] if opp.get('user_id') else ''
             ])
         
-        # Write data starting from A1
         worksheet.update(values=rows, range_name="A1")
         print(f"Successfully wrote {len(opportunities)} opportunities to odoo_sales tab")
         
@@ -149,7 +136,6 @@ def write_to_odoo_sales_tab(sheets, opportunities):
 def main():
     print("Starting Odoo sales data collection...")
     
-    # Authenticate with Odoo
     session_id = authenticate_odoo()
     if not session_id:
         print("Failed to authenticate with Odoo")
@@ -157,15 +143,12 @@ def main():
     
     print("Authentication successful")
     
-    # Get opportunities
     opportunities = get_opportunities(session_id)
     
     if opportunities:
-        # Import gspread here
         from google.oauth2.service_account import Credentials
         import gspread
         
-        # Authenticate with Google Sheets
         credentials = Credentials.from_service_account_file(
             SERVICE_ACCOUNT_FILE, scopes=SCOPES
         )
