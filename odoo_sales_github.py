@@ -130,8 +130,8 @@ def write_to_odoo_sales_tab(sheets, opportunities):
                 opp.get('stage_id', ['', ''])[1] if opp.get('stage_id') else '',
                 opp.get('source_id', ['', ''])[1] if opp.get('source_id') else '',
                 opp.get('campaign_id', ['', ''])[1] if opp.get('campaign_id') else '',
-                opp.get('pricelist_id', ['', ''])[1] if opp.get('pricelist_id') else '',  # Added pricelist data
-                opp.get('website_id', ['', ''])[1] if opp.get('website_id') else '',      # Added website data
+                opp.get('pricelist_id', ['', ''])[1] if opp.get('campaign_id') else '',
+                opp.get('website_id', ['', ''])[1] if opp.get('campaign_id') else '',
                 opp.get('expected_revenue', 0),
                 opp.get('user_id', ['', ''])[1] if opp.get('user_id') else ''
             ])
