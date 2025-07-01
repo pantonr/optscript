@@ -1,0 +1,30 @@
+name: Odoo Sales Orders Test
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:      # Manual trigger
+
+jobs:
+  fetch-sales-orders:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        pip install gspread google-auth requests
+        
+    - name: Create service account file
+      run: echo '${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}' > service_account.json
+    
+    - name: Run Odoo Sales Orders Script
+      env:
+        ODOO_USERNAME: ${{ secrets.ODOO_LOGIN }}
+        ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+      run: python odoo_sales_github.py
