@@ -67,7 +67,9 @@ def get_opportunities(session_id):
                     "name",
                     "stage_id",
                     "source_id",
+                    "medium_id",
                     "campaign_id",
+                    "website_id",
                     "expected_revenue",
                     "user_id"
                 ],
@@ -94,7 +96,7 @@ def write_to_odoo_sales_tab(sheets, opportunities):
         try:
             worksheet = sheet.worksheet('odoo_sales')
         except:
-            worksheet = sheet.add_worksheet(title='odoo_sales', rows=1000, cols=8)
+            worksheet = sheet.add_worksheet(title='odoo_sales', rows=1000, cols=10)
             print("Created new 'odoo_sales' worksheet")
         
         worksheet.clear()
@@ -106,7 +108,9 @@ def write_to_odoo_sales_tab(sheets, opportunities):
             "Name",
             "Stage",
             "Source",
+            "Medium",
             "Campaign",
+            "Website",
             "Amount",
             "User"
         ]
@@ -119,7 +123,9 @@ def write_to_odoo_sales_tab(sheets, opportunities):
                 opp.get('name', ''),
                 opp.get('stage_id', ['', ''])[1] if opp.get('stage_id') else '',
                 opp.get('source_id', ['', ''])[1] if opp.get('source_id') else '',
+                opp.get('medium_id', ['', ''])[1] if opp.get('medium_id') else '',
                 opp.get('campaign_id', ['', ''])[1] if opp.get('campaign_id') else '',
+                opp.get('website_id', ['', ''])[1] if opp.get('website_id') else '',
                 opp.get('expected_revenue', 0),
                 opp.get('user_id', ['', ''])[1] if opp.get('user_id') else ''
             ])
