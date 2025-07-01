@@ -38,78 +38,77 @@ def authenticate_odoo():
         print("Authentication failed")
         return None
 
-def get_sales_orders(session_id):
-    """Get sales orders from last 90 days"""
+def test_all_models(session_id):
+    """Test multiple models to see what exists"""
     headers = {
         "Content-Type": "application/json",
         "Cookie": f"session_id={session_id}"
     }
 
-    ninety_days_ago = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
-
-    data = {
-        "jsonrpc": "2.0",
-        "method": "call",
-        "params": {
-            "model": "sale.order",
-            "method": "search_read",
-            "args": [[
-                ("create_date", ">=", f"{ninety_days_ago} 00:00:00")
-            ]],
-            "kwargs": {
-                "fields": [
-                    "id", 
-                    "name"
-                ],
-                "limit": 50
+    models_to_test = [
+        "sale.order",
+        "sale.order.line", 
+        "account.move",
+        "crm.lead",
+        "res.partner"
+    ]
+    
+    results = []
+    
+    for model in models_to_test:
+        print(f"Testing {model}...")
+        
+        data = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+                "model": model,
+                "method": "search_read",
+                "args": [[]],  # No filters
+                "kwargs": {
+                    "fields": ["id"],
+                    "limit": 5
+                }
             }
         }
-    }
 
-    response = requests.post(ODOO_URL + "/web/dataset/call_kw/sale.order/search_read", data=json.dumps(data), headers=headers)
+        response = requests.post(ODOO_URL + f"/web/dataset/call_kw/{model}/search_read", data=json.dumps(data), headers=headers)
+        
+        if response.status_code == 200:
+            result = response.json().get("result", [])
+            count = len(result)
+            print(f"  {model}: {count} records found")
+            results.append([model, count, "SUCCESS"])
+        else:
+            print(f"  {model}: ERROR {response.status_code}")
+            results.append([model, 0, f"ERROR {response.status_code}"])
+    
+    return results
 
-    if response.status_code == 200:
-        result = response.json().get("result", [])
-        print(f"API Response successful, found {len(result)} sales orders")
-        return result
-    else:
-        print(f"API Error: {response.status_code}")
-        return []
-
-def write_to_sales_test_tab(sheets, sales_orders):
-    """Write data to the 'sales_test' tab"""
+def write_debug_to_sheet(sheets, results):
+    """Write debug results to sheet"""
     try:
         sheet = sheets.open_by_key(SPREADSHEET_ID)
         
         try:
-            worksheet = sheet.worksheet('sales_test')
+            worksheet = sheet.worksheet('debug_test')
         except:
-            worksheet = sheet.add_worksheet(title='sales_test', rows=1000, cols=2)
-            print("Created new 'sales_test' worksheet")
+            worksheet = sheet.add_worksheet(title='debug_test', rows=100, cols=3)
+            print("Created new 'debug_test' worksheet")
         
         worksheet.clear()
-        print("Cleared existing data from sales_test tab")
         
-        headers = ["ID", "Order Number"]
-        
-        rows = [headers]
-        for order in sales_orders:
-            rows.append([
-                order.get('id', ''),
-                order.get('name', '')
-            ])
+        headers = ["Model", "Record Count", "Status"]
+        rows = [headers] + results
         
         worksheet.update(values=rows, range_name="A1")
-        print(f"Successfully wrote {len(sales_orders)} sales orders to sales_test tab")
-        
-        return True
+        print("Debug results written to debug_test tab")
         
     except Exception as e:
-        print(f"Error writing to sales_test tab: {e}")
-        return None
+        print(f"Error writing debug: {e}")
 
 def main():
-    print("Starting Odoo sales orders test...")
+    print("Starting Odoo model test...")
     
     session_id = authenticate_odoo()
     if not session_id:
@@ -118,25 +117,20 @@ def main():
     
     print("Authentication successful")
     
-    sales_orders = get_sales_orders(session_id)
+    # Test all models
+    results = test_all_models(session_id)
     
-    if sales_orders:
-        from google.oauth2.service_account import Credentials
-        import gspread
-        
-        credentials = Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE, scopes=SCOPES
-        )
-        sheets = gspread.authorize(credentials)
-        
-        print("Writing data to sales_test tab...")
-        success = write_to_sales_test_tab(sheets, sales_orders)
-        if success:
-            print("Process completed successfully!")
-        else:
-            print("Failed to write data to spreadsheet")
-    else:
-        print("No sales orders found")
+    # Always write to sheet, even if empty
+    from google.oauth2.service_account import Credentials
+    import gspread
+    
+    credentials = Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES
+    )
+    sheets = gspread.authorize(credentials)
+    
+    write_debug_to_sheet(sheets, results)
+    print("Process completed - check debug_test tab!")
 
 if __name__ == "__main__":
     main()
