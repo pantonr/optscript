@@ -23,7 +23,7 @@ password = os.environ.get('ODOO_PASSWORD')
 xmlrpc_url = odoo_url.rstrip('/')
 
 # Salesperson assignment
-MIKE_GOODWIN_USER_ID = 28
+MICHAEL_BETANCOURT_USER_ID = 20
 
 # Map sources to IDs (adjust these for your QA environment)
 source_mapping = {
@@ -438,7 +438,7 @@ Device: {lead_data.get('campaign_device', 'Not specified')}"""
         "type": "lead",
         "description": description,
         "referred": "Website Form",
-        "user_id": MIKE_GOODWIN_USER_ID
+        "user_id": MICHAEL_BETANCOURT_USER_ID
     }
 
     # Add UTM data if available
@@ -451,7 +451,7 @@ Device: {lead_data.get('campaign_device', 'Not specified')}"""
     if lead_data.get('campaign_landing_page'):
         odoo_lead_data['website'] = lead_data['campaign_landing_page']
 
-    print(f"📝 Creating lead with UTM data and Mike Goodwin (ID: {MIKE_GOODWIN_USER_ID}):")
+    print(f"📝 Creating lead with UTM data and Michael Betancourt (ID: {MICHAEL_BETANCOURT_USER_ID}):")
     print(f"   Campaign ID: {campaign_id}")
     print(f"   Source ID: {source_id}")
     print(f"   Medium ID: {medium_id}")
@@ -473,11 +473,11 @@ Device: {lead_data.get('campaign_device', 'Not specified')}"""
 
     if response.status_code == 200 and response.json().get("result"):
         lead_id = response.json()["result"]
-        print(f"✅ Created lead '{lead_name}' with ID: {lead_id} assigned to Mike Goodwin")
+        print(f"✅ Created lead '{lead_name}' with ID: {lead_id} assigned to Michael Betancourt")
         
         # Create activity for the lead
         print(f"📅 Creating activity for lead {lead_id}...")
-        activity_created = create_activity_for_lead(lead_id, MIKE_GOODWIN_USER_ID)
+        activity_created = create_activity_for_lead(lead_id, MICHAEL_BETANCOURT_USER_ID)
         if activity_created:
             print(f"✅ Activity created successfully for lead {lead_id}")
         else:
